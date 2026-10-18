@@ -4,8 +4,8 @@ A library of plugins and their releases for Filagora: types, plugins, uploaded r
 subscriptions and staff notes, with the review, quarantine and archive states a release moves through.
 
 > The package is at `0.1`: the API may change between `0.x` minor versions. There is no frontend:
-> it is models and services, and you build the pages. Searching, archiving old releases, the
-> Filament screens and the optional download and JSON API routes follow.
+> it is models and services, and you build the pages. Archiving old releases, the Filament screens
+> and the optional download and JSON API routes follow.
 
 ## Requirements
 
@@ -71,6 +71,37 @@ app(\Filagora\Plugins\Services\Reports::class)->report($user, $plugin, 'Looks li
 - **Followers** choose whether to hear through your `SubscriberPreferences` (everyone, by default).
 - **Kill switch.** `submissions_enabled` set to false refuses every new plugin and release.
 
+## Who sees what, downloads and search
+
+```php
+$visibility = app(\Filagora\Plugins\Services\Visibility::class);
+$visibility->publicPlugins($viewer, typeSlug: 'tools', search: 'shipping')->paginate();
+$visibility->findOwnerPlugin($slug, $owner);          // their own plugin in any status
+$visibility->staffPlugins($staff)->get();             // for someone who may moderate
+
+app(\Filagora\Plugins\Contracts\DownloadAccess::class)->canDownloadRelease($viewer, $release);
+app(\Filagora\Plugins\Services\ReleaseSelection::class)->latest($plugin->releases, target: '2.1.0');
+app(\Filagora\Plugins\Search\PluginSearch::class)->plugins('shipping', $viewer, page: 1);
+```
+
+- **`Visibility`** is the one place that decides what each audience sees: the public sees active plugins of active
+  types (and their active releases); an owner also sees their own plugins and releases in any status; staff who may
+  moderate see everything in an active type. A type can require an entitlement scope, asked of the access checker.
+  Build every page, API response and search result on these queries.
+- **`DownloadAccess`** says who may download. The default needs an active plugin of an active type and, when the type
+  requires a scope, the access checker's yes; a release must be active, or archived while `downloads.archived_releases`
+  is on. Bind your own to decide another way.
+- **`ReleaseSelection`** picks the newest release (by version number, then by when it was touched) and whether a
+  version is newer than another. It can pick the newest release that works with a target such as a software version,
+  through the `Compatibility` contract. With nothing bound every release works with every target; a profile package
+  that tracks compatibility binds its own (it also supplies the relations to load and a database restriction).
+- **Search** (with [`filagora/filagora-search`](https://github.com/filagora/filagora-search) installed): releases are
+  indexed (`plugin_releases`), so a version or a changelog line can match; `PluginSearch` collapses the matches to
+  plugins with all their active releases, drops what the viewer may not see, ranks them (name, description,
+  changelog, version, fit with a version typed in the query, downloads, recency) and pages them. Every word must be
+  found, in any field. The index is kept right when a release, plugin or type changes. A profile package adds
+  document fields by subclassing `ReleaseSearchIndex` and score nudges by subclassing `PluginRanking`.
+
 ## Install
 
 ```bash
@@ -97,6 +128,8 @@ A site that already has the tables runs `php artisan filagora:adopt` instead of 
 | `storage.disk` | `local` (`FILAGORA_PLUGINS_DISK`) | Disk release archives are stored on |
 | `submissions_enabled` | `true` | Kill switch for new plugins and releases |
 | `archive.*` | 5000 files, 200 MB | Limits for an uploaded archive |
+| `downloads.archived_releases` | `true` | Whether an archived release can still be downloaded |
+| `search.candidates` | `300` | Most matching releases asked of the engine before ranking |
 | `gates` | `filagora.plugins.moderate`, `.auto_publish` | The keys behind the abilities |
 | `mail.*` | on, no support address | The default emails |
 | `routes.plugin` | none | Named route of your plugin page, for links in mail |
