@@ -179,7 +179,7 @@ it('rejects the waiting releases, with a note, when the author agrees to replace
     $new = app(Releases::class)->submitRelease($author, $plugin, releaseInput('1.1.0', supersede: true));
 
     expect($waiting->fresh()->status)->toBe(PluginStatus::REJECTED_FINAL)
-        ->and($new->status)->toBe(PluginStatus::MODERATED)
+        ->and($new->fresh()->status)->toBe(PluginStatus::MODERATED)
         ->and(PluginModeratorNote::where('plugin_id', $plugin->id)->first()->note)->toContain('v1.0.0')->toContain('Replaced by v1.1.0');
     Event::assertDispatched(ReleaseRejected::class, fn (ReleaseRejected $e): bool => $e->superseded && $e->release->is($waiting) && $e->except->is($author));
 });
@@ -192,7 +192,7 @@ it('does not count a live or rejected release as waiting', function () {
         ->and(app(Releases::class)->submitRelease($author, $plugin, releaseInput('1.1.0'))->status)->toBe(PluginStatus::MODERATED);
 });
 
-it('lets a profile package check the submission and act once the release exists, but not override what the package decides', function () {
+it('lets a profile package check the submission, add its columns and act once the release exists, but not override what the package decides', function () {
     $seen = [];
     app(ReleaseExtensions::class)->register(new class($seen) implements ReleaseExtension
     {
@@ -202,7 +202,7 @@ it('lets a profile package check the submission and act once the release exists,
         {
             $this->seen[] = ['prepare', $plugin?->id, $canonicalVersion, $input->extra];
 
-            return ['changelog' => 'from the extension', 'status' => 'active'];
+            return ['changelog' => 'from the extension', 'status' => 'active', 'quarantine_note' => 'kept'];
         }
 
         public function created(Plugin $plugin, PluginRelease $release, ReleaseInput $input): void
@@ -213,7 +213,8 @@ it('lets a profile package check the submission and act once the release exists,
 
     $release = app(Releases::class)->submitPlugin(TestUser::make('Ada'), ['name' => 'Ext', 'plugin_type_id' => pluginType()->id], releaseInput('2.0', ['flag' => true]));
 
-    expect($release->changelog)->toBe('Changes')
+    expect($release->quarantine_note)->toBe('kept')
+        ->and($release->changelog)->toBe('Changes')
         ->and($release->status)->toBe(PluginStatus::MODERATED)
         ->and($seen[0])->toBe(['prepare', null, 'v2.0', ['flag' => true]])
         ->and($seen[1])->toBe(['created', $release->id]);

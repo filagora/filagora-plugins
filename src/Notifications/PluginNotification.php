@@ -54,7 +54,7 @@ final class PluginNotification extends Notification implements ShouldQueue
 
         $name = config('filagora-plugins.routes.plugin');
 
-        return is_string($name) && $name !== '' && $this->routeParameters !== [] && Route::has($name)
+        return is_string($name) && $name !== '' && Route::has($name)
             ? $mail->action(__("filagora-plugins::notifications.{$this->kind}.action"), route($name, $this->routeParameters))
             : $mail;
     }
