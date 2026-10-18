@@ -5,6 +5,19 @@ declare(strict_types=1);
 use Filagora\Core\Schema\SchemaRegistry;
 use Filagora\Core\Schema\TableShape;
 
+/*
+ * The database may already have been built, without forums, by an earlier test, so these tests bring
+ * the forums tables and the link up to date themselves and take the link off again afterwards.
+ */
+beforeEach(function () {
+    $this->artisan('migrate')->assertSuccessful();
+    runThreadLinkMigration('up');
+});
+
+afterEach(function () {
+    runThreadLinkMigration('down');
+});
+
 function runThreadLinkMigration(string $direction): void
 {
     $migration = require __DIR__.'/../../database/migrations/forums/2026_10_19_100000_add_thread_foreign_key_to_plugins_table.php';

@@ -16,7 +16,9 @@ Dependencies are declared in `composer.json` (`require` is hard, `suggest` is op
 
 ## This package
 
-- **Slice 1 of the plugin library:** tables, models and statuses only. Releases are not yet validated, moderated, searched or served; those services, the Filament screens and the optional routes arrive in later releases (see the plan).
+- **Slices 1 and 2 of the plugin library:** the tables and models, and the release lifecycle (submit, moderate, report, follow). Version search, archiving of old releases, the Filament screens and the optional routes arrive later.
+- `Releases`, `Moderation`, `Reports` and `Subscriptions` are the services a host calls. They throw `ReleaseRefused` / `ModerationRefused` (a reason enum plus a safe message) and dispatch events; the default emails are a listener (`SendPluginMail`) that `mail.enabled` switches off.
+- Profile packages hook in through `ReleaseExtensions` and the events; the package's own attributes (status, plugin id) always win over an extension's.
 - Six tables: `plugin_types`, `plugins`, `plugin_releases`, `plugin_reports`, `plugin_subscriptions`, `plugin_moderator_notes`, matching the live definitions of the site the package was extracted from, so an existing site can adopt them with `filagora:adopt`.
 - What is deliberately *not* here: columns only one kind of plugin needs (an import id, an archive layout, a zip root) belong to a profile package that declares them as a schema extension; the links into other packages' tables (`forum_thread_id`, the two security-scan ids) are plain columns, and the foreign keys come from those packages' migrations. The forums link ships here as `database/migrations/forums` and is registered as a schema extension only when `filagora-forums` is installed.
 - `PluginRelease` numbers its releases per plugin (`internal_version`), keeps `approved_at` through a quarantine or archive, and fills the size and checksum from the stored file on the configured disk.
