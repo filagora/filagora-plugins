@@ -12,6 +12,8 @@ use Filagora\Core\Schema\SchemaExtension;
 use Filagora\Core\Schema\SchemaRegistry;
 use Filagora\Core\Support\GateAbilities;
 use Filagora\Plugins\Contracts\ArchiveInspector;
+use Filagora\Plugins\Contracts\Compatibility;
+use Filagora\Plugins\Contracts\DownloadAccess;
 use Filagora\Plugins\Contracts\SubmissionPolicy;
 use Filagora\Plugins\Contracts\SubscriberPreferences;
 use Filagora\Plugins\Events\PluginModerated;
@@ -23,14 +25,25 @@ use Filagora\Plugins\Events\ReleaseSubmitted;
 use Filagora\Plugins\Events\SubscribersToNotify;
 use Filagora\Plugins\Listeners\NotifySubscribers;
 use Filagora\Plugins\Listeners\SendPluginMail;
+use Filagora\Plugins\Models\Plugin;
+use Filagora\Plugins\Models\PluginType;
 use Filagora\Plugins\Release\AccessCheckerSubmissionPolicy;
+use Filagora\Plugins\Release\NoCompatibility;
 use Filagora\Plugins\Release\ReleaseExtensions;
+use Filagora\Plugins\Release\ScopeDownloadAccess;
 use Filagora\Plugins\Release\WantsEveryUpdate;
 use Filagora\Plugins\Release\ZipArchiveInspector;
+use Filagora\Plugins\Search\PluginRanking;
+use Filagora\Plugins\Search\PluginSearch;
+use Filagora\Plugins\Search\ReleaseSearchIndex;
+use Filagora\Plugins\Search\SyncReleaseDocuments;
 use Filagora\Plugins\Services\Moderation;
 use Filagora\Plugins\Services\Releases;
+use Filagora\Plugins\Services\ReleaseSelection;
 use Filagora\Plugins\Services\Reports;
 use Filagora\Plugins\Services\Subscriptions;
+use Filagora\Plugins\Services\Visibility;
+use Filagora\Search\Support\SearchIndexRegistry;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -43,6 +56,12 @@ class PluginsServiceProvider extends ServiceProvider
         $this->app->bindIf(SubmissionPolicy::class, fn ($app): SubmissionPolicy => new AccessCheckerSubmissionPolicy($app->make(AccessChecker::class)));
         $this->app->bindIf(ArchiveInspector::class, ZipArchiveInspector::class);
         $this->app->bindIf(SubscriberPreferences::class, WantsEveryUpdate::class);
+        $this->app->bindIf(Compatibility::class, NoCompatibility::class);
+        $this->app->bindIf(DownloadAccess::class, fn ($app): DownloadAccess => new ScopeDownloadAccess($app->make(AccessChecker::class)));
+        $this->app->singleton(ReleaseSelection::class);
+        $this->app->singleton(Visibility::class);
+        $this->app->singleton(PluginRanking::class);
+        $this->app->singleton(ReleaseSearchIndex::class);
         $this->app->singleton(ReleaseExtensions::class);
         $this->app->singleton(Releases::class);
         $this->app->singleton(Moderation::class);
@@ -83,6 +102,8 @@ class PluginsServiceProvider extends ServiceProvider
         Event::listen(PluginReported::class, [SendPluginMail::class, 'reported']);
         Event::listen(PluginReportReviewed::class, [SendPluginMail::class, 'reviewed']);
 
+        $this->registerSearch();
+
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'filagora-plugins');
         $this->loadMigrationsFrom([__DIR__.'/../database/migrations', __DIR__.'/../database/migrations/forums']);
 
@@ -91,5 +112,31 @@ class PluginsServiceProvider extends ServiceProvider
                 __DIR__.'/../config/filagora-plugins.php' => config_path('filagora-plugins.php'),
             ], 'filagora-plugins-config');
         }
+    }
+
+    /**
+     * With `filagora-search` installed, releases become a search index, and plugins and types keep
+     * the release documents they feed right. Without it there is no plugin search to set up.
+     */
+    private function registerSearch(): void
+    {
+        if (! class_exists(SearchIndexRegistry::class) || ! $this->app->bound(SearchIndexRegistry::class)) {
+            return;
+        }
+
+        $this->app->make(SearchIndexRegistry::class)->register($this->app->make(ReleaseSearchIndex::class));
+        $this->app->singleton(PluginSearch::class);
+
+        Event::listen('eloquent.saved: *', function (string $event, array $payload): void {
+            $model = $payload[0] ?? null;
+
+            if ($model instanceof Plugin && $model->wasChanged(['name', 'slug', 'description', 'status', 'plugin_type_id'])) {
+                SyncReleaseDocuments::dispatch('plugin', (int) $model->getKey());
+            }
+
+            if ($model instanceof PluginType && $model->wasChanged('is_active')) {
+                SyncReleaseDocuments::dispatch('type', (int) $model->getKey());
+            }
+        });
     }
 }

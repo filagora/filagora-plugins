@@ -13,6 +13,7 @@ use Filagora\Plugins\Tests\Support\GrantedKeys;
 use Filagora\Plugins\Tests\Support\TestPanelProvider;
 use Filagora\Plugins\Tests\Support\TestSupportServiceProvider;
 use Filagora\Plugins\Tests\Support\TestUser;
+use Filagora\Search\SearchServiceProvider;
 use Filament\Actions\ActionsServiceProvider;
 use Filament\FilamentServiceProvider;
 use Filament\Forms\FormsServiceProvider;
@@ -43,6 +44,7 @@ abstract class TestCase extends Orchestra
             TablesServiceProvider::class,
             WidgetsServiceProvider::class,
             CoreServiceProvider::class,
+            SearchServiceProvider::class,
             PluginsServiceProvider::class,
             TestSupportServiceProvider::class,
             TestPanelProvider::class,

@@ -2,14 +2,23 @@
 
 declare(strict_types=1);
 
+use Filagora\Plugins\Contracts\Compatibility;
 use Filagora\Plugins\Enums\PluginStatus;
 use Filagora\Plugins\Models\Plugin;
 use Filagora\Plugins\Models\PluginRelease;
 use Filagora\Plugins\Models\PluginType;
 use Filagora\Plugins\Release\ReleaseInput;
+use Filagora\Plugins\Search\PluginRanking;
+use Filagora\Plugins\Search\PluginSearch;
+use Filagora\Plugins\Search\ReleaseDatabaseSearch;
+use Filagora\Plugins\Search\ReleaseSearchIndex;
+use Filagora\Plugins\Services\ReleaseSelection;
+use Filagora\Plugins\Services\Visibility;
+use Filagora\Plugins\Tests\Support\FakeCompatibility;
 use Filagora\Plugins\Tests\Support\GrantedKeys;
 use Filagora\Plugins\Tests\Support\TestUser;
 use Filagora\Plugins\Tests\Support\Zips;
+use Filagora\Search\Support\SearchIndexRegistry;
 
 function pluginType(): PluginType
 {
@@ -44,4 +53,30 @@ function livePlugin(?TestUser $owner = null, PluginStatus $status = PluginStatus
     PluginRelease::create(['plugin_id' => $plugin->id, 'uploaded_by_id' => $owner?->id, 'version' => 'v1.0.0', 'zip_path' => "plugins/{$slug}.zip", 'status' => $status]);
 
     return $plugin->refresh();
+}
+
+/**
+ * Bind an in-memory compatibility list and forget the services that took the default.
+ */
+function fakeCompatibility(): FakeCompatibility
+{
+    $fake = new FakeCompatibility;
+    app()->instance(Compatibility::class, $fake);
+
+    foreach ([ReleaseSelection::class, Visibility::class, PluginRanking::class, ReleaseSearchIndex::class, ReleaseDatabaseSearch::class, PluginSearch::class] as $service) {
+        app()->forgetInstance($service);
+    }
+
+    // The search registry still holds the index built with the old list.
+    app(SearchIndexRegistry::class)->register(app(ReleaseSearchIndex::class));
+
+    return $fake;
+}
+
+/**
+ * A release of a plugin, active unless said otherwise.
+ */
+function addRelease(Plugin $plugin, string $version, PluginStatus $status = PluginStatus::ACTIVE, array $attributes = []): PluginRelease
+{
+    return PluginRelease::create($attributes + ['plugin_id' => $plugin->id, 'version' => $version, 'zip_path' => "plugins/{$plugin->slug}-{$version}.zip", 'status' => $status])->refresh();
 }

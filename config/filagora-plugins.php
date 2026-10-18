@@ -63,6 +63,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Downloads
+    |--------------------------------------------------------------------------
+    |
+    | `archived_releases`: whether a release archived out of the security sweep can still be
+    | downloaded (it stays listed either way).
+    |
+    */
+    'downloads' => ['archived_releases' => true],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    |
+    | With `filagora-search` installed, releases are searchable. `candidates` is the most matching
+    | releases the engine is asked for before they are collapsed to plugins and ranked.
+    |
+    */
+    'search' => ['candidates' => 300],
+
+    /*
+    |--------------------------------------------------------------------------
     | Abilities
     |--------------------------------------------------------------------------
     |

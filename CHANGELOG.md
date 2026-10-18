@@ -26,7 +26,21 @@ All notable changes to this package are documented here. The format follows
 - Events for every step, and default emails read from the language file (switch off with `mail.enabled`).
 - The `filagora.plugins.moderate` and `filagora.plugins.auto_publish` abilities, remappable in `gates`.
 
+- `Visibility`: the public, owner and staff views of plugins, types and releases, with entitlement-scoped types
+  resolved through the access checker.
+- `DownloadAccess` (contract and default), `ReleaseSelection`, and the `Compatibility` contract for a profile
+  package that tracks what a release works with.
+- With `filagora-search`: the `plugin_releases` index (`ReleaseSearchIndex`), a database fallback that understands
+  the filter tree, `PluginSearch` and `PluginRanking`, and a job that keeps release documents right when a plugin
+  or type changes.
+
 ### Differences from the site this was extracted from
+
+- The access checker decides who may see an entitlement-scoped type, so other access models work too; the
+  original resolved the viewer's entitlements and matched scopes with wildcards in the query. The debug flag that
+  switched every access check off is not carried over.
+- The database search needs every word of the query, as the other engines do; the original matched the whole
+  phrase.
 
 - Submissions are refused by the service, not only by a route's middleware, when `submissions_enabled` is false.
 - A file that is not a readable ZIP is refused; the original let it through and failed later.
