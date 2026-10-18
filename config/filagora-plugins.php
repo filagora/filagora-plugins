@@ -46,6 +46,58 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Submissions and archives
+    |--------------------------------------------------------------------------
+    |
+    | `submissions_enabled` is a kill switch: false refuses every new plugin and release. An
+    | uploaded archive is refused when it holds more than `archive.max_entries` files or would
+    | expand past `archive.max_uncompressed_bytes`, or holds a path that escapes its folder.
+    |
+    */
+    'submissions_enabled' => (bool) env('FILAGORA_PLUGINS_SUBMISSIONS_ENABLED', true),
+
+    'archive' => [
+        'max_entries' => (int) env('FILAGORA_PLUGINS_ARCHIVE_MAX_ENTRIES', 5000),
+        'max_uncompressed_bytes' => (int) env('FILAGORA_PLUGINS_ARCHIVE_MAX_UNCOMPRESSED_BYTES', 200 * 1024 * 1024),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Abilities
+    |--------------------------------------------------------------------------
+    |
+    | Each ability the package defines, mapped to the key asked of the access checker
+    | (`filagora-entitlements` answers from grants). `moderate` reviews plugins, releases and
+    | reports and publishes without review; `auto_publish` publishes without review only.
+    |
+    */
+    'gates' => [
+        'filagora.plugins.moderate' => 'filagora.plugins.moderate',
+        'filagora.plugins.auto_publish' => 'filagora.plugins.auto_publish',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mail
+    |--------------------------------------------------------------------------
+    |
+    | `enabled` switches the default emails off (listen to the package's events instead).
+    | `support_email` is told of new submissions and reports; leave it empty to tell no one.
+    | `acknowledge_submissions` emails the author a receipt; turn it off when something else, such
+    | as a security scan, writes to them when it is done. `routes.plugin` is the named route of
+    | your plugin page (it receives `plugin`), used for the links in the mail.
+    |
+    */
+    'mail' => [
+        'enabled' => true,
+        'support_email' => env('FILAGORA_PLUGINS_SUPPORT_EMAIL'),
+        'acknowledge_submissions' => true,
+    ],
+
+    'routes' => ['plugin' => null],
+
+    /*
+    |--------------------------------------------------------------------------
     | Navigation group
     |--------------------------------------------------------------------------
     |

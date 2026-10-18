@@ -6,8 +6,10 @@ namespace Filagora\Plugins\Tests;
 
 use BladeUI\Heroicons\BladeHeroiconsServiceProvider;
 use BladeUI\Icons\BladeIconsServiceProvider;
+use Filagora\Core\Contracts\AccessChecker;
 use Filagora\Core\CoreServiceProvider;
 use Filagora\Plugins\PluginsServiceProvider;
+use Filagora\Plugins\Tests\Support\GrantedKeys;
 use Filagora\Plugins\Tests\Support\TestPanelProvider;
 use Filagora\Plugins\Tests\Support\TestSupportServiceProvider;
 use Filagora\Plugins\Tests\Support\TestUser;
@@ -45,6 +47,14 @@ abstract class TestCase extends Orchestra
             TestSupportServiceProvider::class,
             TestPanelProvider::class,
         ];
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->singleton(GrantedKeys::class);
+        $this->app->bind(AccessChecker::class, GrantedKeys::class);
     }
 
     protected function defineEnvironment($app): void
