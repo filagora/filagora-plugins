@@ -147,7 +147,7 @@ class Plugin extends Model
     }
 
     /**
-     * Accepts `owner/repo`, `git@github.com:owner/repo` and github.com URLs and answers a full https URL.
+     * Accepts `owner/repo`, an SSH remote and github.com URLs and answers a full https URL.
      */
     private static function normalizeGithubRepositoryUrl(?string $value): ?string
     {
