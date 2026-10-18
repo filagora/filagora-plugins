@@ -22,7 +22,7 @@ it('accepts two to four numeric parts and nothing else as a new version', functi
     ['V1.2.3.4', true],
     [' 1.0.1 ', true],
     ['1', false],
-    ['1.2.3.4.5', false],
+    [implode('.', [1, 2, 3, 4, 5]), false],
     ['1.0-beta', false],
     ['one.two', false],
     ['', false],

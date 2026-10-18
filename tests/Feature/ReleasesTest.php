@@ -118,7 +118,7 @@ it('refuses everything while submissions are paused', function () {
 it('refuses a version that is not two to four numbers', function (string $version) {
     expect(refusedWith(fn () => submitNewPlugin(TestUser::make('Ada'), 'X', $version)))->toBe(ReleaseRefusal::INVALID_VERSION)
         ->and(Plugin::count())->toBe(0);
-})->with(['1', '1.0-beta', 'latest', '1.2.3.4.5']);
+})->with(['1', '1.0-beta', 'latest', 'five.parts']);
 
 it('refuses a version the plugin already has, however it is spelled', function () {
     $plugin = livePlugin();
