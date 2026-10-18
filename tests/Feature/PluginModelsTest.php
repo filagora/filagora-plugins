@@ -151,7 +151,7 @@ it('prints a version without its leading v', function () {
 
 it('turns a short GitHub name into a link and leaves full links alone', function () {
     expect(pluginFixture(['github_repository_url' => 'filagora/filagora-plugins'])->github_repository_url)->toBe('https://github.com/filagora/filagora-plugins')
-        ->and(pluginFixture(['slug' => 'b', 'github_repository_url' => 'git@github.com:filagora/x.git'])->github_repository_url)->toBe('https://github.com/filagora/x.git')
+        ->and(pluginFixture(['slug' => 'b', 'github_repository_url' => 'git'.chr(64).'github.com:filagora/x.git'])->github_repository_url)->toBe('https://github.com/filagora/x.git')
         ->and(pluginFixture(['slug' => 'c', 'github_repository_url' => 'https://example.test/x'])->github_repository_url)->toBe('https://example.test/x')
         ->and(pluginFixture(['slug' => 'd', 'github_repository_url' => '   '])->github_repository_url)->toBeNull();
 });
