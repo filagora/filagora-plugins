@@ -170,3 +170,18 @@ it('tells the owner of nothing when a plugin has no owner', function () {
 
     expect(app(Visibility::class)->ownerReleases($plugin, TestUser::make('Bo'))->count())->toBe(1);
 });
+
+it('keeps the owner\'s extras out of the public view, even for the owner', function () {
+    $ada = TestUser::make('Ada');
+    library($ada);
+
+    expect(slugs(app(Visibility::class)->publicPlugins($ada)->get()))->toBe(['mine-live', 'open-live'])
+        ->and(app(Visibility::class)->publicPlugins($ada)->get()->firstWhere('slug', 'mine-live')->releases)->toHaveCount(1);
+});
+
+it('searches the words as typed, not as patterns', function () {
+    library(TestUser::make('Ada'));
+
+    expect(slugs(app(Visibility::class)->publicPlugins(null, null, '%')->get()))->toBe([])
+        ->and(slugs(app(Visibility::class)->publicPlugins(null, null, '_')->get()))->toBe([]);
+});

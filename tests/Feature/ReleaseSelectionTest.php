@@ -81,3 +81,24 @@ it('says whether an available version is newer than an installed one', function 
     ['1.0.0', 'v1.0.0', false],
     ['rubbish', '0.1', true],
 ]);
+
+it('prefers the release touched last when two have the same version', function () {
+    $plugin = livePlugin();
+    $first = addRelease($plugin, 'v2.0');
+    $second = addRelease($plugin, '2.0');
+    PluginRelease::query()->whereKey($first->id)->update(['updated_at' => now()->addHour()]);
+    PluginRelease::query()->whereKey($second->id)->update(['updated_at' => now()->subHour()]);
+
+    expect(app(ReleaseSelection::class)->latest([$first->fresh(), $second->fresh()])->is($first))->toBeTrue()
+        ->and(app(ReleaseSelection::class)->latest([$second->fresh(), $first->fresh()])->is($first))->toBeTrue();
+});
+
+it('prefers the later row when two have the same version and were touched together', function () {
+    $plugin = livePlugin();
+    $first = addRelease($plugin, 'v2.0');
+    $second = addRelease($plugin, '2.0');
+    PluginRelease::query()->whereKey([$first->id, $second->id])->update(['updated_at' => '2026-01-01 00:00:00']);
+
+    expect(app(ReleaseSelection::class)->latest([$first->fresh(), $second->fresh()])->is($second))->toBeTrue()
+        ->and(app(ReleaseSelection::class)->latest([$second->fresh(), $first->fresh()])->is($second))->toBeTrue();
+});

@@ -16,6 +16,7 @@ use Filagora\Plugins\Tests\Support\TestUser;
 use Filagora\Search\Contracts\Filter;
 use Filagora\Search\Engines\ArrayEngine;
 use Filagora\Search\Filters\Equals;
+use Filagora\Search\Filters\Not;
 use Filagora\Search\Filters\Range;
 use Filagora\Search\Support\SearchEngines;
 use Filagora\Search\Support\SearchQuery;
@@ -302,7 +303,8 @@ it('keeps the documents right when a plugin is renamed, or its type is switched 
 
     $plugin->type->update(['is_active' => false]);
 
-    expect(found('renamed'))->toBe([]);
+    expect(found('renamed'))->toBe([])
+        ->and($engine->stats(app(ReleaseSearchIndex::class)->definition())?->documents)->toBe(0);
 
     $plugin->type->update(['is_active' => true]);
 
@@ -341,4 +343,67 @@ it('lists the fields a search may filter on, and lets a profile add more', funct
     expect($definition->name)->toBe('plugin_releases')
         ->and($definition->filterable)->toContain('plugin_type_id', 'compatibility', 'status')
         ->and($definition->sortable)->toBe(['approved_at_ts', 'download_count']);
+});
+
+it('drops a plugin whose index document is stale and which has no live release left', function () {
+    searchOn('array');
+    $plugin = searchable('Widget');
+
+    expect(found('widget'))->toBe(['Widget']);
+
+    // Changed behind the index's back, as a bulk update would.
+    PluginRelease::query()->update(['status' => PluginStatus::MODERATED->value]);
+
+    expect(found('widget'))->toBe([]);
+});
+
+it('scores what it should for recency, downloads and fit with a version in the query', function () {
+    Carbon::setTestNow('2026-10-18 12:00:00');
+    $compatibility = fakeCompatibility();
+    $ranking = app(PluginRanking::class);
+
+    $score = function (string $name, array $release, array $tokens = ['widget']) use ($ranking): int {
+        $plugin = searchable($name, release: $release);
+        $canonical = $plugin->releases->first();
+
+        return $ranking->score($plugin, $canonical, (int) $canonical->download_count, $tokens);
+    };
+
+    $base = $score('Widget Base', ['approved_at' => now()->subYears(20)]);
+
+    expect($score('Widget Fresh', ['approved_at' => now()->subDays(30)]) - $base)->toBe(55)
+        ->and($score('Widget Year', ['approved_at' => now()->subDays(200)]) - $base)->toBe(40)
+        ->and($score('Widget Years', ['approved_at' => now()->subYears(2)]) - $base)->toBe(24)
+        ->and($score('Widget Old', ['approved_at' => now()->subYears(5)]) - $base)->toBe(12)
+        ->and($score('Widget Popular', ['approved_at' => now()->subYears(20), 'download_count' => 999]) - $base)->toBe(15)
+        ->and($score('Widget Huge', ['approved_at' => now()->subYears(20), 'download_count' => 10_000_000]) - $base)->toBe(20);
+
+    $fits = searchable('Widget Fits', release: ['approved_at' => now()->subYears(20)]);
+    $compatibility->declare($fits->releases->first(), '2.1');
+    $unfit = $ranking->score($fits, $fits->releases->first(), 0, ['widget', '9.9']);
+    $fit = $ranking->score($fits, $fits->releases->first(), 0, ['widget', '2.1']);
+
+    expect($fit - $unfit)->toBe(45)
+        ->and($ranking->versionTokens(['widget', '2.1', '1.5.7', 'v3', '1']))->toBe(['2.1', '1.5.7']);
+
+    Carbon::setTestNow();
+});
+
+it('asks the engine for the newest releases first when it can only answer from the database', function () {
+    searchOn('database');
+    config(['filagora-plugins.search.candidates' => 1]);
+    searchable('Widget Older', release: ['created_at' => now()->subDay()]);
+    searchable('Widget Newer', release: ['created_at' => now()]);
+
+    expect(found('widget'))->toBe(['Widget Newer']);
+});
+
+it('understands a filter that leaves something out', function () {
+    $first = searchable('Widget One');
+    $second = searchable('Widget Two');
+
+    $result = app(ReleaseDatabaseSearch::class)->search(new SearchQuery(filter: new Not(new Equals('plugin_id', $first->id))));
+
+    expect($result->total)->toBe(1)
+        ->and($result->ids())->toBe([$second->releases->first()->id]);
 });
