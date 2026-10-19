@@ -16,7 +16,8 @@ Dependencies are declared in `composer.json` (`require` is hard, `suggest` is op
 
 ## This package
 
-- **Slices 1 to 3 of the plugin library:** the tables and models, the release lifecycle (submit, moderate, report, follow), and who sees what, downloads, release selection and search. Archiving of old releases, the Filament screens and the optional routes arrive later.
+- **Slices 1 to 3 of the plugin library:** the tables and models, the release lifecycle (submit, moderate, report, follow), and who sees what, downloads, release selection and search. Archiving of old releases is built too (`Archiving`, `filagora:plugins:archive-releases`); the Filament screens and the optional routes arrive later.
+- `Archiving::archive()` must never leave a plugin without an active release; any new path that archives has to go through it. It checks nobody's permission, so a screen or command that offers it must.
 - `Visibility` is the single source for what each audience sees: never query plugins or releases for a page, API response or search result without it. `DownloadAccess`, `Compatibility` and `ReleaseSearchIndex` / `PluginRanking` are the extension points for a profile package; search exists only when `filagora-search` is installed, so keep that integration optional (`registerSearch()`).
 - `Releases`, `Moderation`, `Reports` and `Subscriptions` are the services a host calls. They throw `ReleaseRefused` / `ModerationRefused` (a reason enum plus a safe message) and dispatch events; the default emails are a listener (`SendPluginMail`) that `mail.enabled` switches off.
 - Profile packages hook in through `ReleaseExtensions` and the events; the package's own attributes (status, plugin id) always win over an extension's.

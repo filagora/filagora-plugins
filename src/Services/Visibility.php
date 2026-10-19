@@ -116,11 +116,14 @@ class Visibility
     }
 
     /**
+     * The active releases, and with `$withArchived` the archived ones too (a page that lists
+     * historical builds with a warning).
+     *
      * @return Builder<PluginRelease>
      */
-    public function publicReleases(Plugin $plugin): Builder
+    public function publicReleases(Plugin $plugin, bool $withArchived = false): Builder
     {
-        return $this->releases($plugin, allStatuses: false);
+        return $this->releases($plugin, allStatuses: false, withArchived: $withArchived);
     }
 
     /**
@@ -237,11 +240,11 @@ class Visibility
     /**
      * @return Builder<PluginRelease>
      */
-    private function releases(Plugin $plugin, bool $allStatuses): Builder
+    private function releases(Plugin $plugin, bool $allStatuses, bool $withArchived = false): Builder
     {
         return Models::class('release')::query()
             ->where('plugin_id', $plugin->getKey())
-            ->when(! $allStatuses, fn (Builder $query) => $query->where('status', PluginStatus::ACTIVE->value))
+            ->when(! $allStatuses, fn (Builder $query) => $query->whereIn('status', $withArchived ? [PluginStatus::ACTIVE->value, PluginStatus::ARCHIVED->value] : [PluginStatus::ACTIVE->value]))
             ->with(['plugin.type', ...$this->compatibility->relations()])
             ->orderByDesc('created_at')
             ->orderByDesc('id');

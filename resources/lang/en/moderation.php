@@ -17,6 +17,7 @@ return [
         'release_approved' => 'Release v:version approved.',
         'release_rejected' => 'Release v:version rejected.',
         'release_superseded' => 'Release v:version replaced by a newer upload.',
+        'releases_archived' => 'Archived :count release(s): :versions.',
     ],
 
     'defaults' => [

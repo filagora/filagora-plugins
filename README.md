@@ -4,8 +4,8 @@ A library of plugins and their releases for Filagora: types, plugins, uploaded r
 subscriptions and staff notes, with the review, quarantine and archive states a release moves through.
 
 > The package is at `0.1`: the API may change between `0.x` minor versions. There is no frontend:
-> it is models and services, and you build the pages. Archiving old releases, the Filament screens
-> and the optional download and JSON API routes follow.
+> it is models and services, and you build the pages. The Filament screens and the optional download
+> and JSON API routes follow.
 
 ## Requirements
 
@@ -102,6 +102,28 @@ app(\Filagora\Plugins\Search\PluginSearch::class)->plugins('shipping', $viewer, 
   found, in any field. The index is kept right when a release, plugin or type changes. A profile package adds
   document fields by subclassing `ReleaseSearchIndex` and score nudges by subclassing `PluginRanking`.
 
+## Archiving old releases
+
+```bash
+php artisan filagora:plugins:archive-releases                    # show the plan, change nothing
+php artisan filagora:plugins:archive-releases --apply            # do it
+php artisan filagora:plugins:archive-releases --restore --apply  # put archived releases back
+```
+
+Archived releases stay listed and (see `downloads.archived_releases`) downloadable, but leave search and the
+security sweep. A release stays active when it is **the plugin's newest**, **uploaded within `archiving.keep_months`**
+(18), **the newest for a version line** the plugin still works with (through `Compatibility`; switch off with
+`--no-keep-per-line`), or **kept by a guard** (`ArchiveGuards::register()`, for example a security package keeping
+a release with an unresolved serious finding). A plugin that is dead weight (rejected, in an inactive type,
+moderated and untouched for a year, or ownerless with nothing newer than two years) keeps only its newest release
+(`--no-whole-plugin` skips that). `--plugin=` (ids or slugs), `--limit=`, `--keep-months=` and `--actor=` narrow
+a run.
+
+**A plugin never ends up with no active release**: the newest is never archived, whatever list of ids
+`Archiving::archive()` is given. It records who archived and when, leaves one note on each plugin touched, and
+`Archiving::restore()` has no limit. The service checks nobody's permission: the screen or command that offers
+it must.
+
 ## Install
 
 ```bash
@@ -128,6 +150,7 @@ A site that already has the tables runs `php artisan filagora:adopt` instead of 
 | `storage.disk` | `local` (`FILAGORA_PLUGINS_DISK`) | Disk release archives are stored on |
 | `submissions_enabled` | `true` | Kill switch for new plugins and releases |
 | `archive.*` | 5000 files, 200 MB | Limits for an uploaded archive |
+| `archiving.*` | 18 months, version lines on | What archiving keeps |
 | `downloads.archived_releases` | `true` | Whether an archived release can still be downloaded |
 | `search.candidates` | `300` | Most matching releases asked of the engine before ranking |
 | `gates` | `filagora.plugins.moderate`, `.auto_publish` | The keys behind the abilities |

@@ -80,3 +80,44 @@ function addRelease(Plugin $plugin, string $version, PluginStatus $status = Plug
 {
     return PluginRelease::create($attributes + ['plugin_id' => $plugin->id, 'version' => $version, 'zip_path' => "plugins/{$plugin->slug}-{$version}.zip", 'status' => $status])->refresh();
 }
+
+/**
+ * A plugin with active releases uploaded the given number of months ago (newest last in the list).
+ *
+ * @param  array<string, int>  $versionsToAge  version => months ago
+ * @param  array<string, mixed>  $plugin
+ */
+function archivable(string $slug, array $versionsToAge, array $plugin = []): Plugin
+{
+    $touched = $plugin['updated_at'] ?? null;
+    unset($plugin['updated_at']);
+
+    $model = Plugin::create($plugin + [
+        'name' => ucfirst($slug),
+        'slug' => $slug,
+        'plugin_type_id' => pluginType()->id,
+        'status' => PluginStatus::ACTIVE,
+        'owner_id' => TestUser::make('Owner'.$slug)->id,
+    ]);
+
+    foreach ($versionsToAge as $version => $monthsAgo) {
+        $release = addRelease($model, (string) $version);
+        PluginRelease::query()->whereKey($release->id)->update(['created_at' => now()->subMonths($monthsAgo)]);
+    }
+
+    if ($touched !== null) {
+        Plugin::query()->whereKey($model->id)->update(['updated_at' => $touched]);
+    }
+
+    return $model->refresh();
+}
+
+/**
+ * The versions of a plugin's releases in a status.
+ *
+ * @return list<string>
+ */
+function versionsWhere(Plugin $plugin, PluginStatus $status): array
+{
+    return PluginRelease::query()->where('plugin_id', $plugin->id)->where('status', $status->value)->orderBy('id')->pluck('version')->all();
+}
