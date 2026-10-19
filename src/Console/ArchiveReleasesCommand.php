@@ -121,7 +121,7 @@ class ArchiveReleasesCommand extends Command
     }
 
     /**
-     * @return list<int>|null Null for every plugin; a list that matches nothing when none was found.
+     * @return list<int>|null Null for every plugin; an empty list, which matches nothing, when none was found.
      */
     private function pluginIds(): ?array
     {
@@ -146,7 +146,7 @@ class ArchiveReleasesCommand extends Command
             ->map(static fn ($id): int => (int) $id)
             ->all();
 
-        return $ids ?: [-1];
+        return $ids;
     }
 
     private function actor(): ?Authenticatable

@@ -316,3 +316,16 @@ it('leaves archived releases listed and downloadable, but out of search and the 
         ->and(app(DownloadAccess::class)->canDownloadRelease(null, $old))->toBeTrue()
         ->and(app(ReleaseSearchIndex::class)->shouldBeSearchable($old))->toBeFalse();
 });
+
+it('treats a moderated plugin as dead only once it has sat untouched for over a year', function () {
+    $owner = TestUser::make('Ada');
+    $recent = archivable('recent', ['1.0.0' => 60, '2.0.0' => 10, '3.0.0' => 2], ['status' => PluginStatus::MODERATED, 'owner_id' => $owner->id, 'updated_at' => now()->subMonths(11)]);
+    $stale = archivable('stale', ['1.0.0' => 60, '2.0.0' => 10, '3.0.0' => 2], ['status' => PluginStatus::MODERATED, 'owner_id' => $owner->id, 'updated_at' => now()->subMonths(13)]);
+
+    expect(versionsOf($recent, planned()[$recent->id]['archive']))->toBe(['1.0.0'])
+        ->and(versionsOf($stale, planned()[$stale->id]['archive']))->toBe(['1.0.0', '2.0.0']);
+
+    config(['filagora-plugins.archiving.stale_moderated_months' => 6]);
+
+    expect(versionsOf($recent, planned()[$recent->id]['archive']))->toBe(['1.0.0', '2.0.0']);
+});

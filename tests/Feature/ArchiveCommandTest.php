@@ -117,9 +117,23 @@ it('puts releases back with --restore --apply, and only shows them without --app
     expect(versionsWhere($first, PluginStatus::ARCHIVED))->toBe([])
         ->and(versionsWhere($second, PluginStatus::ARCHIVED))->toBe(['1.0.0']);
 
-    $this->artisan('filagora:plugins:archive-releases', ['--restore' => true, '--apply' => true, '--limit' => '5'])->assertSuccessful();
+    $this->artisan('filagora:plugins:archive-releases', ['--restore' => true, '--apply' => true, '--limit' => '1'])
+        ->expectsOutputToContain('Restored 1 release(s)')
+        ->assertSuccessful();
 
     expect(PluginRelease::where('status', 'archived')->count())->toBe(0);
 
     $this->artisan('filagora:plugins:archive-releases', ['--restore' => true, '--apply' => true])->expectsOutputToContain('No archived releases to restore.')->assertSuccessful();
+});
+
+it('restores no more than --limit', function () {
+    archivable('first', ['1.0.0' => 60, '2.0.0' => 2]);
+    archivable('second', ['1.0.0' => 60, '2.0.0' => 2]);
+    $this->artisan('filagora:plugins:archive-releases', ['--apply' => true])->assertSuccessful();
+
+    $this->artisan('filagora:plugins:archive-releases', ['--restore' => true, '--apply' => true, '--limit' => '1'])
+        ->expectsOutputToContain('Restored 1 release(s)')
+        ->assertSuccessful();
+
+    expect(PluginRelease::where('status', 'archived')->count())->toBe(1);
 });
