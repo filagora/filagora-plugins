@@ -63,6 +63,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Archiving
+    |--------------------------------------------------------------------------
+    |
+    | `filagora:plugins:archive-releases` moves historical releases to "archived": still listed and
+    | (see `downloads`) downloadable, but out of the security sweep. A release stays active when it is
+    | a plugin's newest, younger than `keep_months`, or the newest for a version line of what the plugin
+    | still works with (`keep_per_target_line`). A plugin moderated and untouched for
+    | `stale_moderated_months`, or with no owner and no release newer than `ownerless_months`, is dead
+    | weight and keeps only its newest release.
+    |
+    */
+    'archiving' => [
+        'keep_months' => (int) env('FILAGORA_PLUGINS_ARCHIVE_KEEP_MONTHS', 18),
+        'keep_per_target_line' => (bool) env('FILAGORA_PLUGINS_ARCHIVE_KEEP_PER_LINE', true),
+        'stale_moderated_months' => 12,
+        'ownerless_months' => 24,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Downloads
     |--------------------------------------------------------------------------
     |

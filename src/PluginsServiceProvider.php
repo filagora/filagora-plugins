@@ -11,6 +11,9 @@ use Filagora\Core\Schema\PackageSchema;
 use Filagora\Core\Schema\SchemaExtension;
 use Filagora\Core\Schema\SchemaRegistry;
 use Filagora\Core\Support\GateAbilities;
+use Filagora\Plugins\Archiving\ArchiveGuards;
+use Filagora\Plugins\Archiving\Archiving;
+use Filagora\Plugins\Console\ArchiveReleasesCommand;
 use Filagora\Plugins\Contracts\ArchiveInspector;
 use Filagora\Plugins\Contracts\Compatibility;
 use Filagora\Plugins\Contracts\DownloadAccess;
@@ -63,6 +66,8 @@ class PluginsServiceProvider extends ServiceProvider
         $this->app->singleton(PluginRanking::class);
         $this->app->singleton(ReleaseSearchIndex::class);
         $this->app->singleton(ReleaseExtensions::class);
+        $this->app->singleton(ArchiveGuards::class);
+        $this->app->singleton(Archiving::class);
         $this->app->singleton(Releases::class);
         $this->app->singleton(Moderation::class);
         $this->app->singleton(Reports::class);
@@ -108,6 +113,8 @@ class PluginsServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom([__DIR__.'/../database/migrations', __DIR__.'/../database/migrations/forums']);
 
         if ($this->app->runningInConsole()) {
+            $this->commands([ArchiveReleasesCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/filagora-plugins.php' => config_path('filagora-plugins.php'),
             ], 'filagora-plugins-config');

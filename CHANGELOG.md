@@ -34,7 +34,16 @@ All notable changes to this package are documented here. The format follows
   the filter tree, `PluginSearch` and `PluginRanking`, and a job that keeps release documents right when a plugin
   or type changes.
 
+- Archiving: `Archiving` (plan, archive, restore), the `filagora:plugins:archive-releases` command, `ArchiveGuard` for
+  packages that want a release kept, and the `ReleasesArchived` / `ReleasesRestored` events.
+- `Visibility::publicReleases($plugin, withArchived: true)` for a page that lists historical builds.
+
 ### Differences from the site this was extracted from
+
+- Archiving keeps the newest release for each *version line of what a release works with* through the
+  `Compatibility` contract, rather than for each Zen Cart version line; and a release with an unresolved
+  serious security finding is kept through `ArchiveGuard`, which the security package will register.
+- Archiving leaves one note per plugin touched (the original planned it but did not do it).
 
 - The access checker decides who may see an entitlement-scoped type, so other access models work too; the
   original resolved the viewer's entitlements and matched scopes with wildcards in the query. The debug flag that
