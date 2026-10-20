@@ -5,6 +5,10 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-20
+
+First release.
+
 ### Added
 
 - The six plugin tables (`plugin_types`, `plugins`, `plugin_releases`, `plugin_reports`,
