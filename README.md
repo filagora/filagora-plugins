@@ -4,8 +4,8 @@ A library of plugins and their releases for Filagora: types, plugins, uploaded r
 subscriptions and staff notes, with the review, quarantine and archive states a release moves through.
 
 > The package is at `0.1`: the API may change between `0.x` minor versions. There is no public
-> frontend: it is models, services and staff screens, and you build the pages. The optional download
-> and JSON API routes follow in a later release.
+> frontend: it is models, services, staff screens and two optional sets of routes, and you build the
+> pages.
 
 ## Requirements
 
@@ -143,6 +143,46 @@ every scope set on a plugin type. The package registers a **privacy contributor*
 package's export covers a person's plugins, releases, followed plugins and reports, and erasure removes what is only
 theirs (who they follow, what they reported) while the public plugins and releases, and staff notes, stay.
 
+## The optional routes
+
+Two sets of routes, both **off by default**; switch them on in `config/filagora-plugins.php` (`routes.api.enabled`,
+`routes.downloads.enabled`, or `FILAGORA_PLUGINS_API_ENABLED` / `FILAGORA_PLUGINS_DOWNLOADS_ENABLED`).
+
+**Downloads** (`routes.downloads.prefix`, `plugins` by default): `GET {prefix}/{slug}/download` serves the plugin's
+newest active release and `GET {prefix}/{slug}/releases/{id}/download` one release, under the name it was uploaded
+with. Anyone may download an active plugin of an active type; a type that requires an entitlement needs a signed-in
+person who has it (a guest gets a 401, which your exception handler turns into a sign-in; someone without it, a 403).
+Archived releases download while `downloads.archived_releases` is on. Staff who may moderate can fetch anything for
+review in a browser session (never with a token). The count goes up only for downloads the public could make.
+
+**JSON API** (`routes.api.prefix`, `api/v1` by default, route names `filagora-plugins.api.*`):
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET plugin-types` | The types the caller may see, with active plugin counts |
+| `GET plugins` | Plugins, paged (`q`, `type`, `page`, `visibility=public\|owner\|staff`) |
+| `GET plugins/{slug}` | One plugin with its releases (`visibility` too) |
+| `GET plugins/{slug}/releases` and `.../releases/{version}` | Releases; one release |
+| `GET plugins/{slug}/download/{version}` | Download details and link for a release |
+| `POST plugins/updates` | `{target?, plugins: [{slug\|id, version}]}` returns the plugins with a newer release that works with `target` |
+| `PATCH plugins/{slug}` | An owner or moderator changes name, description, repository, support thread |
+| `GET\|POST\|DELETE plugins/{slug}/subscription` | Follow a plugin |
+| `POST plugins/{slug}/releases` | Upload a release (`version`, `zip_file`, `changelog`, `supersede_pending_releases`) |
+| `POST plugins/{slug}/releases/{version}/moderate` | Staff: `action=approve\|reject_permanently`, `note` |
+
+What anyone sees comes from `Visibility`; uploads and moderation go through `Releases` and `Moderation`, so every rule
+above applies. A refused upload is a 422 naming the field (a paused site is a 503).
+
+**Who may call.** A browser session needs nothing more. A request with a **token** needs the ability the endpoint asks
+for (`plugins:read`, `plugins:download`, `plugins:write`) on the token, and the matching capability key
+(`routes.api.keys`, `api.plugins.read` and so on) allowed by the access checker for the token's owner; set a key to
+`null` to ask for none. The package never reads a token: bind `ApiUsers` for Passport or anything else; the default
+asks `routes.api.guard` (set it to `sanctum`) for the user and the user's `tokenCan()`.
+
+**For profile packages.** `ApiFields` adds fields to every plugin and release and rules for extra upload fields (they
+reach your `ReleaseExtension` in `ReleaseInput::$extra`); `PluginIdentifiers` teaches the update check the ids your
+clients already use. Both default to nothing.
+
 ## Install
 
 ```bash
@@ -174,6 +214,7 @@ A site that already has the tables runs `php artisan filagora:adopt` instead of 
 | `search.candidates` | `300` | Most matching releases asked of the engine before ranking |
 | `gates` | `filagora.plugins.moderate`, `.auto_publish` | The keys behind the abilities |
 | `mail.*` | on, no support address | The default emails |
+| `routes.api.*`, `routes.downloads.*` | off | The optional routes, their prefix, middleware, guard, capability keys and limits |
 | `routes.plugin` | none | Named route of your plugin page, for links in mail |
 
 ## Testing

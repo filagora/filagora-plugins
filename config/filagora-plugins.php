@@ -127,7 +127,8 @@ return [
     | `support_email` is told of new submissions and reports; leave it empty to tell no one.
     | `acknowledge_submissions` emails the author a receipt; turn it off when something else, such
     | as a security scan, writes to them when it is done. `routes.plugin` is the named route of
-    | your plugin page (it receives `plugin`), used for the links in the mail.
+    | your plugin page (it receives `plugin`), and `routes.thread` of a support thread (it receives
+    | `thread`): used for the links in mail and in the API.
     |
     */
     'mail' => [
@@ -136,6 +137,38 @@ return [
         'acknowledge_submissions' => true,
     ],
 
-    'routes' => ['plugin' => null],
+    'routes' => [
+        'plugin' => null,
+        'thread' => null,
+
+        /*
+         * The optional JSON API. Off by default. `guard` is the guard that signs a request in (for
+         * tokens, the Sanctum guard); `keys` are the capability keys a token's owner needs, by
+         * ability (set one to null to ask for none); `per_page` pages the plugin list.
+         */
+        'api' => [
+            'enabled' => (bool) env('FILAGORA_PLUGINS_API_ENABLED', false),
+            'prefix' => 'api/v1',
+            'middleware' => ['api'],
+            'guard' => null,
+            'per_page' => 15,
+            'max_upload_kb' => 102400,
+            'keys' => [
+                'read' => 'api.plugins.read',
+                'download' => 'api.plugins.download',
+                'write' => 'api.plugins.write',
+            ],
+        ],
+
+        /*
+         * The optional download endpoints (`{prefix}/{slug}/download` and
+         * `{prefix}/{slug}/releases/{release}/download`). Off by default.
+         */
+        'downloads' => [
+            'enabled' => (bool) env('FILAGORA_PLUGINS_DOWNLOADS_ENABLED', false),
+            'prefix' => 'plugins',
+            'middleware' => ['web'],
+        ],
+    ],
 
 ];

@@ -5,6 +5,25 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional download endpoints (`routes.downloads.enabled`) and an optional JSON API (`routes.api.enabled`), both
+  off by default: reading the catalogue, an update check, following a plugin, changing a plugin, uploading a
+  release and moderating one. A request with a token needs the endpoint's ability and a capability key
+  (`routes.api.keys`).
+- `ApiUsers` (who is calling and what their token may do; the default reads a guard and `tokenCan()`), `ApiFields`
+  and `PluginIdentifiers` for profile packages.
+- With `filagora-entitlements`: definitions for the API capability keys.
+
+### Differences from the site this was extracted from
+
+- The update check takes `target` (what the client runs on) instead of a Zen Cart version, and identifies plugins
+  by `slug` or `id`; a profile adds the identifiers its clients use.
+- The package never reads a token: it asks `ApiUsers`, so Sanctum is not required.
+- A guest refused a download gets a 401, for your exception handler to turn into a sign-in, instead of a redirect to a
+  login modal, and a download that cannot be served is a 404 instead of a redirect to the plugin page.
+- The debug flag that switched off every API access check is not carried over.
+
 ## [0.1.0] - 2026-10-20
 
 First release.

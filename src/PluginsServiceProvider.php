@@ -16,12 +16,19 @@ use Filagora\Core\Schema\SchemaRegistry;
 use Filagora\Core\Support\GateAbilities;
 use Filagora\Entitlements\Registry\Definition;
 use Filagora\Entitlements\Registry\EntitlementRegistry;
+use Filagora\Plugins\Api\ApiAccess;
+use Filagora\Plugins\Api\GuardApiUsers;
+use Filagora\Plugins\Api\NoApiFields;
+use Filagora\Plugins\Api\SlugOrIdIdentifiers;
 use Filagora\Plugins\Archiving\ArchiveGuards;
 use Filagora\Plugins\Archiving\Archiving;
 use Filagora\Plugins\Console\ArchiveReleasesCommand;
+use Filagora\Plugins\Contracts\ApiFields;
+use Filagora\Plugins\Contracts\ApiUsers;
 use Filagora\Plugins\Contracts\ArchiveInspector;
 use Filagora\Plugins\Contracts\Compatibility;
 use Filagora\Plugins\Contracts\DownloadAccess;
+use Filagora\Plugins\Contracts\PluginIdentifiers;
 use Filagora\Plugins\Contracts\SubmissionPolicy;
 use Filagora\Plugins\Contracts\SubscriberPreferences;
 use Filagora\Plugins\Events\PluginModerated;
@@ -55,6 +62,7 @@ use Filagora\Plugins\Services\Visibility;
 use Filagora\Plugins\Support\PluginTypeEntitlementKeys;
 use Filagora\Search\Support\SearchIndexRegistry;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class PluginsServiceProvider extends ServiceProvider
@@ -73,6 +81,10 @@ class PluginsServiceProvider extends ServiceProvider
         $this->app->singleton(PluginRanking::class);
         $this->app->singleton(ReleaseSearchIndex::class);
         $this->app->singleton(ReleaseExtensions::class);
+        $this->app->bindIf(ApiUsers::class, GuardApiUsers::class);
+        $this->app->bindIf(ApiFields::class, NoApiFields::class);
+        $this->app->bindIf(PluginIdentifiers::class, fn ($app): PluginIdentifiers => new SlugOrIdIdentifiers($app->make(Visibility::class)));
+        $this->app->singleton(ApiAccess::class);
         $this->app->singleton(ArchiveGuards::class);
         $this->app->singleton(Archiving::class);
         $this->app->singleton(Releases::class);
@@ -117,6 +129,7 @@ class PluginsServiceProvider extends ServiceProvider
         $this->app->make(PrivacyContributorRegistry::class)->register(new PluginsDataContributor);
         $this->registerNavigationGroup();
         $this->declareEntitlements();
+        $this->registerRoutes();
         $this->registerSearch();
 
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'filagora-plugins');
@@ -168,8 +181,8 @@ class PluginsServiceProvider extends ServiceProvider
     }
 
     /**
-     * With `filagora-entitlements` installed: the keys behind the abilities, and the scopes set on
-     * plugin types, are declared so `filagora:entitlements:sync` creates their definitions. Without
+     * With `filagora-entitlements` installed: the keys behind the abilities, the capability keys
+     * the API asks of a token's owner, and the scopes set on plugin types, are declared so `filagora:entitlements:sync` creates their definitions. Without
      * it there is nothing to declare them to.
      */
     private function declareEntitlements(): void
@@ -184,6 +197,31 @@ class PluginsServiceProvider extends ServiceProvider
             $registry->define(new Definition($entitlement, wildcardChildren: false));
         }
 
+        foreach ((array) config('filagora-plugins.routes.api.keys', []) as $key) {
+            if (is_string($key) && $key !== '') {
+                $registry->define(new Definition($key));
+            }
+        }
+
         $registry->keySource(new PluginTypeEntitlementKeys);
+    }
+
+    /**
+     * The optional JSON API and download endpoints, each off until it is switched on in the config.
+     */
+    private function registerRoutes(): void
+    {
+        if (config('filagora-plugins.routes.api.enabled')) {
+            Route::prefix((string) config('filagora-plugins.routes.api.prefix', 'api/v1'))
+                ->middleware((array) config('filagora-plugins.routes.api.middleware', ['api']))
+                ->name('filagora-plugins.api.')
+                ->group(__DIR__.'/../routes/api.php');
+        }
+
+        if (config('filagora-plugins.routes.downloads.enabled')) {
+            Route::prefix((string) config('filagora-plugins.routes.downloads.prefix', 'plugins'))
+                ->middleware((array) config('filagora-plugins.routes.downloads.middleware', ['web']))
+                ->group(__DIR__.'/../routes/downloads.php');
+        }
     }
 }
