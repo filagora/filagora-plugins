@@ -7,8 +7,7 @@ use Filagora\Plugins\FilagoraPluginsPlugin;
 use Filament\Panel;
 
 it('merges the package config', function () {
-    expect(config('filagora-plugins.storage.disk'))->toBe('local')
-        ->and(config('filagora-plugins.navigation_group'))->toBe('Plugins');
+    expect(config('filagora-plugins.storage.disk'))->toBe('local');
 });
 
 it('registers on a panel', function () {

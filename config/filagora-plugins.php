@@ -138,14 +138,4 @@ return [
 
     'routes' => ['plugin' => null],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Navigation group
-    |--------------------------------------------------------------------------
-    |
-    | The Filament navigation group this package's resources are placed in.
-    |
-    */
-    'navigation_group' => env('FILAGORA_PLUGINS_NAVIGATION_GROUP', 'Plugins'),
-
 ];

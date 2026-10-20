@@ -3,9 +3,9 @@
 A library of plugins and their releases for Filagora: types, plugins, uploaded releases, reports,
 subscriptions and staff notes, with the review, quarantine and archive states a release moves through.
 
-> The package is at `0.1`: the API may change between `0.x` minor versions. There is no frontend:
-> it is models and services, and you build the pages. The Filament screens and the optional download
-> and JSON API routes follow.
+> The package is at `0.1`: the API may change between `0.x` minor versions. There is no public
+> frontend: it is models, services and staff screens, and you build the pages. The optional download
+> and JSON API routes follow in a later release.
 
 ## Requirements
 
@@ -124,6 +124,25 @@ a run.
 `Archiving::restore()` has no limit. The service checks nobody's permission: the screen or command that offers
 it must.
 
+## Staff screens, privacy and entitlements
+
+Register `FilagoraPluginsPlugin::make()` on a Filament panel for four screens in a **Plugins** navigation group,
+all open only to someone the access checker allows `filagora.plugins.moderate`:
+
+- **Plugins**: list (filter by status or type), create, edit, approve or reject (a rejection needs a note), change
+  the status of several, and a **Staff notes** panel on each plugin.
+- **Plugin releases**: list, edit, approve or reject, download the archive, change the status of several, and
+  **Archive** / **Restore** in bulk (a plugin's last active release is never archived). Releases are submitted
+  through `Releases`, which checks the archive, so there is no create page.
+- **Plugin reports**: the open reports first; mark one reviewed or dismiss it with a note, and the reporter is told.
+- **Plugin types**: name, slug, order, active, and the entitlement a member needs to see and download its plugins
+  (picked from the definitions when `filagora-entitlements` is installed, typed in otherwise).
+
+With `filagora-entitlements` installed, `filagora:entitlements:sync` creates a definition for each ability key and for
+every scope set on a plugin type. The package registers a **privacy contributor** with core: the compliance
+package's export covers a person's plugins, releases, followed plugins and reports, and erasure removes what is only
+theirs (who they follow, what they reported) while the public plugins and releases, and staff notes, stay.
+
 ## Install
 
 ```bash
@@ -156,7 +175,6 @@ A site that already has the tables runs `php artisan filagora:adopt` instead of 
 | `gates` | `filagora.plugins.moderate`, `.auto_publish` | The keys behind the abilities |
 | `mail.*` | on, no support address | The default emails |
 | `routes.plugin` | none | Named route of your plugin page, for links in mail |
-| `navigation_group` | `Plugins` | Filament navigation group |
 
 ## Testing
 
