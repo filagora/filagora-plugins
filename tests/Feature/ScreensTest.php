@@ -354,7 +354,13 @@ it('offers a download only when the file is there', function () {
     Livewire::test(ListPluginReleases::class)
         ->assertTableActionVisible('download', $release)
         ->callTableAction('download', $release)
-        ->assertFileDownloaded($release->zip_path === 'plugins/widget.zip' ? 'widget.zip' : basename($release->zip_path));
+        ->assertFileDownloaded('widget.zip');
+
+    $release->update(['zip_filename' => 'My Plugin.zip']);
+
+    Livewire::test(ListPluginReleases::class)
+        ->callTableAction('download', $release->fresh())
+        ->assertFileDownloaded('My Plugin.zip');
 
     Storage::disk('local')->delete($release->zip_path);
 
