@@ -38,7 +38,19 @@ All notable changes to this package are documented here. The format follows
   packages that want a release kept, and the `ReleasesArchived` / `ReleasesRestored` events.
 - `Visibility::publicReleases($plugin, withArchived: true)` for a page that lists historical builds.
 
+- Four staff screens in a **Plugins** navigation group (plugins, releases, reports, types), a notes panel on each
+  plugin, and the moderation, archive and review steps as table actions. All are open to `filagora.plugins.moderate`.
+- A privacy contributor (export and erasure), and, with `filagora-entitlements`, definitions for the ability keys and
+  for the scopes set on plugin types.
+
 ### Differences from the site this was extracted from
+
+- The release screen has no create page and no security-scan, AI-review or quarantine actions: submitting a
+  release goes through `Releases`, and the scan actions belong to `filagora-plugins-security`.
+- Plugin reports are reviewed with an action (and a note) instead of an edit form, so the reporter's text and the
+  review cannot be changed together.
+- The unused `navigation_group` setting is gone; the group is registered with core's navigation registry, which a
+  host can relabel.
 
 - Archiving keeps the newest release for each *version line of what a release works with* through the
   `Compatibility` contract, rather than for each Zen Cart version line; and a release with an unresolved

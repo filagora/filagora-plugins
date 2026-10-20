@@ -7,10 +7,15 @@ namespace Filagora\Plugins;
 use Filagora\Core\Contracts\AccessChecker;
 use Filagora\Core\Modules\Module;
 use Filagora\Core\Modules\ModuleRegistry;
+use Filagora\Core\Navigation\NavigationGroupDefinition;
+use Filagora\Core\Navigation\NavigationGroupRegistry;
+use Filagora\Core\Privacy\PrivacyContributorRegistry;
 use Filagora\Core\Schema\PackageSchema;
 use Filagora\Core\Schema\SchemaExtension;
 use Filagora\Core\Schema\SchemaRegistry;
 use Filagora\Core\Support\GateAbilities;
+use Filagora\Entitlements\Registry\Definition;
+use Filagora\Entitlements\Registry\EntitlementRegistry;
 use Filagora\Plugins\Archiving\ArchiveGuards;
 use Filagora\Plugins\Archiving\Archiving;
 use Filagora\Plugins\Console\ArchiveReleasesCommand;
@@ -30,6 +35,7 @@ use Filagora\Plugins\Listeners\NotifySubscribers;
 use Filagora\Plugins\Listeners\SendPluginMail;
 use Filagora\Plugins\Models\Plugin;
 use Filagora\Plugins\Models\PluginType;
+use Filagora\Plugins\Privacy\PluginsDataContributor;
 use Filagora\Plugins\Release\AccessCheckerSubmissionPolicy;
 use Filagora\Plugins\Release\NoCompatibility;
 use Filagora\Plugins\Release\ReleaseExtensions;
@@ -46,6 +52,7 @@ use Filagora\Plugins\Services\ReleaseSelection;
 use Filagora\Plugins\Services\Reports;
 use Filagora\Plugins\Services\Subscriptions;
 use Filagora\Plugins\Services\Visibility;
+use Filagora\Plugins\Support\PluginTypeEntitlementKeys;
 use Filagora\Search\Support\SearchIndexRegistry;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -107,6 +114,9 @@ class PluginsServiceProvider extends ServiceProvider
         Event::listen(PluginReported::class, [SendPluginMail::class, 'reported']);
         Event::listen(PluginReportReviewed::class, [SendPluginMail::class, 'reviewed']);
 
+        $this->app->make(PrivacyContributorRegistry::class)->register(new PluginsDataContributor);
+        $this->registerNavigationGroup();
+        $this->declareEntitlements();
         $this->registerSearch();
 
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'filagora-plugins');
@@ -145,5 +155,35 @@ class PluginsServiceProvider extends ServiceProvider
                 SyncReleaseDocuments::dispatch('type', (int) $model->getKey());
             }
         });
+    }
+
+    private function registerNavigationGroup(): void
+    {
+        $this->app->make(NavigationGroupRegistry::class)->register(new NavigationGroupDefinition(
+            key: 'plugins',
+            label: fn (): string => __('filagora-plugins::messages.navigation_groups.plugins'),
+            icon: 'heroicon-o-puzzle-piece',
+            sort: 30,
+        ));
+    }
+
+    /**
+     * With `filagora-entitlements` installed: the keys behind the abilities, and the scopes set on
+     * plugin types, are declared so `filagora:entitlements:sync` creates their definitions. Without
+     * it there is nothing to declare them to.
+     */
+    private function declareEntitlements(): void
+    {
+        if (! class_exists(EntitlementRegistry::class) || ! $this->app->bound(EntitlementRegistry::class)) {
+            return;
+        }
+
+        $registry = $this->app->make(EntitlementRegistry::class);
+
+        foreach (GateAbilities::keys('filagora-plugins.gates') as $entitlement) {
+            $registry->define(new Definition($entitlement, wildcardChildren: false));
+        }
+
+        $registry->keySource(new PluginTypeEntitlementKeys);
     }
 }
