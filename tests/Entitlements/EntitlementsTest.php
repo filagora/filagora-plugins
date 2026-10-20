@@ -33,6 +33,7 @@ it('lists the scopes set on plugin types, once each, and nothing for a type with
     PluginType::create(['name' => 'B', 'slug' => 'b', 'required_entitlement_scope' => 'plugins.members']);
     PluginType::create(['name' => 'C', 'slug' => 'c', 'required_entitlement_scope' => '  plugins.vip  ']);
     PluginType::create(['name' => 'D', 'slug' => 'd', 'required_entitlement_scope' => '   ']);
+    PluginType::create(['name' => 'F', 'slug' => 'f', 'required_entitlement_scope' => 'plugins.vip']);
     PluginType::create(['name' => 'E', 'slug' => 'e']);
 
     $keys = (new PluginTypeEntitlementKeys)->keys();

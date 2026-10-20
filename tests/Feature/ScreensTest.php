@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use Filagora\Core\Contracts\AccessChecker;
+use Filagora\Plugins\Enums\ModerationAction;
+use Filagora\Plugins\Enums\ModerationRefusal;
 use Filagora\Plugins\Enums\PluginReportStatus;
 use Filagora\Plugins\Enums\PluginStatus;
+use Filagora\Plugins\Exceptions\ModerationRefused;
 use Filagora\Plugins\Filament\Resources\PluginReleases\Pages\EditPluginRelease;
 use Filagora\Plugins\Filament\Resources\PluginReleases\Pages\ListPluginReleases;
 use Filagora\Plugins\Filament\Resources\PluginReleases\PluginReleaseResource;
@@ -23,10 +27,13 @@ use Filagora\Plugins\Models\PluginModeratorNote;
 use Filagora\Plugins\Models\PluginRelease;
 use Filagora\Plugins\Models\PluginReport;
 use Filagora\Plugins\Models\PluginType;
+use Filagora\Plugins\Services\Moderation;
 use Filagora\Plugins\Services\Reports;
 use Filagora\Plugins\Tests\Support\TestUser;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification as FilamentNotification;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -97,6 +104,17 @@ it('lists, creates and edits plugin types', function () {
         ->assertHasNoFormErrors();
 
     expect($created->fresh()->name)->toBe('Payments')->and($created->fresh()->is_active)->toBeFalse();
+});
+
+it('keeps a slug that was typed by hand when the name changes', function () {
+    staff();
+
+    Livewire::test(CreatePluginType::class)
+        ->fillForm(['name' => 'First Name'])
+        ->assertFormSet(['slug' => 'first-name'])
+        ->fillForm(['slug' => 'custom'])
+        ->fillForm(['name' => 'Second Name'])
+        ->assertFormSet(['slug' => 'custom']);
 });
 
 it('makes the slug from the name until it is changed by hand, and keeps slugs unique', function () {
@@ -244,6 +262,35 @@ it('approves and rejects a release from the list', function () {
     expect($good->fresh()->status)->toBe(PluginStatus::ACTIVE)->and($bad->fresh()->status)->toBe(PluginStatus::REJECTED_FINAL);
 });
 
+it('will not reject a release without a note', function () {
+    staff();
+    $release = addRelease(livePlugin(null, PluginStatus::ACTIVE), '2.0.0', PluginStatus::MODERATED);
+
+    Livewire::test(ListPluginReleases::class)
+        ->callTableAction('reject', $release, ['note' => ''])
+        ->assertHasTableActionErrors(['note' => 'required']);
+
+    expect($release->fresh()->status)->toBe(PluginStatus::MODERATED);
+});
+
+it('tells the person when the service refuses, and changes nothing', function () {
+    staff();
+    $plugin = livePlugin(null, PluginStatus::MODERATED);
+    app()->instance(Moderation::class, new class(app(AccessChecker::class)) extends Moderation
+    {
+        public function moderatePlugin(Authenticatable $moderator, Plugin $plugin, ModerationAction $action, ?string $note = null): void
+        {
+            throw new ModerationRefused(ModerationRefusal::NOT_PERMITTED);
+        }
+    });
+
+    Livewire::test(ListPlugins::class)
+        ->callTableAction('approve', $plugin, ['note' => 'x'])
+        ->assertNotified('You are not allowed to moderate plugins.');
+
+    expect($plugin->fresh()->status)->toBe(PluginStatus::MODERATED);
+});
+
 it('edits a release', function () {
     staff();
     $release = livePlugin()->releases->first();
@@ -273,7 +320,9 @@ it('archives and restores releases in bulk, never archiving a plugin\'s last act
     PluginRelease::query()->whereKey($plugin->releases()->where('version', 'v1.0.0')->value('id'))->update(['created_at' => now()->subYears(3)]);
     $old = $plugin->releases()->where('version', 'v1.0.0')->first();
 
-    Livewire::test(ListPluginReleases::class)->callTableBulkAction('archive', [$old, $second]);
+    Livewire::test(ListPluginReleases::class)
+        ->callTableBulkAction('archive', [$old, $second])
+        ->assertNotified(FilamentNotification::make()->success()->title('Archived 1 release(s)')->body("Kept back 1: a plugin's last active release is never archived."));
 
     expect($old->fresh()->status)->toBe(PluginStatus::ARCHIVED)
         ->and($old->fresh()->archived_by_id)->toBe($mo->id)

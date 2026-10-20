@@ -50,7 +50,7 @@ class ModeratorNotesRelationManager extends RelationManager
                         $moderator = auth()->user();
                         assert($plugin instanceof Plugin && $moderator instanceof Authenticatable);
 
-                        return app(Moderation::class)->addNote($plugin, $moderator, trim((string) $data['note']));
+                        return app(Moderation::class)->addNote($plugin, $moderator, (string) $data['note']);
                     }),
             ]);
     }

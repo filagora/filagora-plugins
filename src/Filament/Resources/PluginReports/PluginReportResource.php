@@ -44,11 +44,6 @@ class PluginReportResource extends Resource
         return false;
     }
 
-    public static function canEdit(Model $record): bool
-    {
-        return false;
-    }
-
     public static function getNavigationGroup(): string|UnitEnum|null
     {
         return app(NavigationGroupRegistry::class)->label('plugins');
