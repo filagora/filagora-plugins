@@ -133,7 +133,16 @@ all open only to someone the access checker allows `filagora.plugins.moderate`:
   the status of several, and a **Staff notes** panel on each plugin.
 - **Plugin releases**: list, edit, approve or reject, download the archive, change the status of several, and
   **Archive** / **Restore** in bulk (a plugin's last active release is never archived). Releases are submitted
-  through `Releases`, which checks the archive, so there is no create page.
+  through `Releases`, which checks the archive, so there is no create page. Other packages add to this screen
+  through `ReleaseScreens` (the security package puts its scan result, re-scan and quarantine actions and the
+  scan history there):
+
+  ```php
+  app(\Filagora\Plugins\Filament\ReleaseScreens::class)->column('my.key', fn () => TextColumn::make('...'));
+  ```
+
+  `column`, `filter`, `action` (a row action or group), `bulkAction` and `relationManager` take a key of your own
+  and a closure that builds the component when the screen is set up; registering a key again replaces it.
 - **Plugin reports**: the open reports first; mark one reviewed or dismiss it with a note, and the reporter is told.
 - **Plugin types**: name, slug, order, active, and the entitlement a member needs to see and download its plugins
   (picked from the definitions when `filagora-entitlements` is installed, typed in otherwise).

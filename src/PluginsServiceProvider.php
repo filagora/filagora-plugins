@@ -38,6 +38,7 @@ use Filagora\Plugins\Events\ReleasePublished;
 use Filagora\Plugins\Events\ReleaseRejected;
 use Filagora\Plugins\Events\ReleaseSubmitted;
 use Filagora\Plugins\Events\SubscribersToNotify;
+use Filagora\Plugins\Filament\ReleaseScreens;
 use Filagora\Plugins\Listeners\NotifySubscribers;
 use Filagora\Plugins\Listeners\SendPluginMail;
 use Filagora\Plugins\Models\Plugin;
@@ -81,6 +82,7 @@ class PluginsServiceProvider extends ServiceProvider
         $this->app->singleton(PluginRanking::class);
         $this->app->singleton(ReleaseSearchIndex::class);
         $this->app->singleton(ReleaseExtensions::class);
+        $this->app->singleton(ReleaseScreens::class);
         $this->app->bindIf(ApiUsers::class, GuardApiUsers::class);
         $this->app->bindIf(ApiFields::class, NoApiFields::class);
         $this->app->bindIf(PluginIdentifiers::class, fn ($app): PluginIdentifiers => new SlugOrIdIdentifiers($app->make(Visibility::class)));
