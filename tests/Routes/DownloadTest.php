@@ -24,7 +24,7 @@ beforeEach(function () {
 function servedPlugin(string $slug = 'widget', PluginStatus $plugin = PluginStatus::ACTIVE, PluginStatus $release = PluginStatus::ACTIVE, ?PluginType $type = null, string $contents = 'zip-bytes'): array
 {
     $model = Plugin::create(['name' => ucfirst($slug), 'slug' => $slug, 'plugin_type_id' => ($type ?? pluginType())->id, 'status' => $plugin]);
-    $file = addRelease($model, '1.0.0', $release, ['zip_filename' => "{$slug}-1.0.0.zip"]);
+    $file = addRelease($model, '1.0.0', $release, ['zip_filename' => "{$slug}-download.zip"]);
     Storage::disk('local')->put($file->zip_path, $contents);
     $file->refresh();
 
@@ -53,7 +53,7 @@ it('serves the newest active release to anyone, under the name it was uploaded w
 it('serves one release by number, and counts it', function () {
     [, $release] = servedPlugin();
 
-    get("/plugins/widget/releases/{$release->id}/download")->assertOk()->assertDownload('widget-1.0.0.zip');
+    get("/plugins/widget/releases/{$release->id}/download")->assertOk()->assertDownload('widget-download.zip');
 
     expect($release->fresh()->download_count)->toBe(1);
 });

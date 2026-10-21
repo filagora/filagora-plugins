@@ -2,22 +2,33 @@
 
 declare(strict_types=1);
 
+use Filagora\Core\Contracts\AccessChecker;
+use Filagora\Core\Support\Tables;
 use Filagora\Plugins\Api\ApiAccess;
 use Filagora\Plugins\Api\ApiPayloads;
+use Filagora\Plugins\Api\DownloadLinks;
 use Filagora\Plugins\Api\GuardApiUsers;
 use Filagora\Plugins\Contracts\ApiFields;
 use Filagora\Plugins\Contracts\ApiUsers;
+use Filagora\Plugins\Contracts\DownloadAccess;
 use Filagora\Plugins\Contracts\ReleaseExtension;
+use Filagora\Plugins\Enums\ModerationAction;
+use Filagora\Plugins\Enums\ModerationRefusal;
 use Filagora\Plugins\Enums\PluginStatus;
+use Filagora\Plugins\Exceptions\ModerationRefused;
 use Filagora\Plugins\Http\Controllers\PluginApiController;
 use Filagora\Plugins\Models\Plugin;
 use Filagora\Plugins\Models\PluginRelease;
 use Filagora\Plugins\Models\PluginType;
 use Filagora\Plugins\Release\ReleaseExtensions;
 use Filagora\Plugins\Release\ReleaseInput;
+use Filagora\Plugins\Services\Moderation;
 use Filagora\Plugins\Tests\Support\GrantedKeys;
 use Filagora\Plugins\Tests\Support\TestUser;
 use Filagora\Plugins\Tests\Support\Zips;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 use function Pest\Laravel\actingAs;
@@ -64,7 +75,11 @@ it('shows a members-only type to a member', function () {
     app(GrantedKeys::class)->give($member, 'plugins.members');
     actingAs($member);
 
-    expect(collect(getJson('/api/v1/plugin-types')->assertOk()->json('data'))->pluck('slug')->sort()->values()->all())->toBe(['members', 'tools']);
+    $types = collect(getJson('/api/v1/plugin-types')->assertOk()->json('data'))->keyBy('slug');
+
+    expect($types->keys()->sort()->values()->all())->toBe(['members', 'tools'])
+        ->and($types['members']['requires_entitlement'])->toBeTrue()
+        ->and($types['tools']['requires_entitlement'])->toBeFalse();
 });
 
 it('pages the public plugins and narrows them by words and type', function () {
@@ -133,6 +148,14 @@ it('lists a plugin\'s releases by audience', function () {
 
     actingAs(TestUser::make('Bo'));
     expect(getJson('/api/v1/plugins/live/releases?visibility=owner')->assertOk()->json('data'))->toHaveCount(1);
+});
+
+it('lists what a release works with, when that is tracked', function () {
+    ['live' => $live] = apiLibrary();
+    fakeCompatibility()->declare($live->releases->first(), '2.1', '2.2');
+
+    getJson('/api/v1/plugins/live/releases/v1.0.0')->assertOk()->assertJsonPath('data.compatibility', ['2.1', '2.2']);
+    getJson('/api/v1/plugins/live')->assertJsonPath('data.releases.0.compatibility', ['2.1', '2.2']);
 });
 
 it('shows one release and its download details', function () {
@@ -254,9 +277,13 @@ it('refuses an unsigned-in or unverified person, and bad values', function () {
 
     $unverified = TestUser::make('Una');
     $unverified->forceFill(['email_verified_at' => null])->save();
+    Plugin::where('slug', 'live')->update(['owner_id' => $unverified->id]);
     actingAs($unverified);
     patchJson('/api/v1/plugins/live', ['name' => 'X'])->assertForbidden();
+    expect(Plugin::where('slug', 'live')->value('name'))->toBe('Live');
+    postJson('/api/v1/plugins/live/subscription')->assertForbidden();
 
+    Plugin::where('slug', 'live')->update(['owner_id' => $ada->id]);
     actingAs($ada);
     patchJson('/api/v1/plugins/live', ['github_repository_url' => 'not a url'])->assertUnprocessable()->assertJsonValidationErrors('github_repository_url');
     patchJson('/api/v1/plugins/live', ['name' => ''])->assertUnprocessable();
@@ -485,8 +512,105 @@ it('reads who is calling through the guard by default, and refuses a token its u
     app()->instance(ApiUsers::class, new GuardApiUsers);
     app()->forgetInstance(ApiAccess::class);
     app()->forgetInstance(PluginApiController::class);
-    actingAs(verified());
+    $user = verified();
+    app(GrantedKeys::class)->give($user, 'api.plugins.read');
+    actingAs($user);
 
     getJson('/api/v1/plugins')->assertOk();
     getJson('/api/v1/plugins', ['Authorization' => 'Bearer anything'])->assertForbidden();
+});
+
+// Download links
+
+it('offers a download link only to a token that may download', function () {
+    apiLibrary();
+    $user = verified();
+    $this->tokens->issue('reader', $user, 'plugins:read');
+    $this->tokens->issue('downloader', $user, 'plugins:read', 'plugins:download');
+    app(GrantedKeys::class)->give($user, 'api.plugins.read', 'api.plugins.download');
+
+    expect(getJson('/api/v1/plugins/live', ['Authorization' => 'Bearer reader'])->assertOk()->json('data.download_url'))->toBeNull()
+        ->and(getJson('/api/v1/plugins/live', ['Authorization' => 'Bearer reader'])->json('data.releases.0.download_url'))->toBeNull()
+        ->and(getJson('/api/v1/plugins/live', ['Authorization' => 'Bearer downloader'])->json('data.download_url'))->toBe(route('filagora-plugins.download', ['slug' => 'live']))
+        ->and(getJson('/api/v1/plugins/live', ['Authorization' => 'Bearer downloader'])->json('data.releases.0.download_url'))->not->toBeNull();
+});
+
+it('offers no download link when the download rules say no', function () {
+    apiLibrary();
+    app()->instance(DownloadAccess::class, new class implements DownloadAccess
+    {
+        public function requiredScope(Plugin $plugin): string
+        {
+            return '';
+        }
+
+        public function canDownloadPlugin(?Authenticatable $user, Plugin $plugin): bool
+        {
+            return false;
+        }
+
+        public function canDownloadRelease(?Authenticatable $user, PluginRelease $release): bool
+        {
+            return false;
+        }
+    });
+    foreach ([DownloadLinks::class, ApiPayloads::class, PluginApiController::class] as $class) {
+        app()->forgetInstance($class);
+    }
+
+    getJson('/api/v1/plugins/live')->assertOk()->assertJsonPath('data.download_url', null)->assertJsonPath('data.releases.0.download_url', null);
+});
+
+it('offers a plugin-level link only when the plugin has a live release', function () {
+    $plugin = Plugin::create(['name' => 'Bare', 'slug' => 'bare', 'plugin_type_id' => pluginType()->id, 'status' => PluginStatus::ACTIVE]);
+    addRelease($plugin, '1.0.0', PluginStatus::MODERATED);
+    $links = app(DownloadLinks::class);
+
+    expect($links->plugin(request(), $plugin))->toBeNull();
+
+    addRelease($plugin, '2.0.0');
+
+    expect($links->plugin(request(), $plugin))->toBe(route('filagora-plugins.download', ['slug' => 'bare']));
+});
+
+// Edge cases of changing and moderating
+
+it('checks a support thread exists when the forums tables are there', function () {
+    ['ada' => $ada] = apiLibrary();
+    $table = Tables::name('threads');
+    Schema::create($table, fn ($t) => $t->id());
+    actingAs($ada);
+
+    try {
+        $id = DB::table($table)->insertGetId([]);
+
+        patchJson('/api/v1/plugins/live', ['forum_thread_id' => $id + 999])->assertUnprocessable()->assertJsonValidationErrors('forum_thread_id');
+        patchJson('/api/v1/plugins/live', ['forum_thread_id' => $id])->assertOk();
+    } finally {
+        Schema::dropIfExists($table);
+    }
+});
+
+it('answers 403 when the moderation service refuses a person it let through', function () {
+    ['live' => $live] = apiLibrary();
+    addRelease($live, '2.0.0', PluginStatus::MODERATED);
+    actingAs(moderator());
+    app()->instance(Moderation::class, new class(app(AccessChecker::class)) extends Moderation
+    {
+        public function moderateRelease(Authenticatable $moderator, Plugin $plugin, PluginRelease $release, ModerationAction $action, ?string $note = null): void
+        {
+            throw new ModerationRefused(ModerationRefusal::NOT_PERMITTED);
+        }
+    });
+    app()->forgetInstance(PluginApiController::class);
+
+    postJson('/api/v1/plugins/live/releases/2.0.0/moderate', ['action' => 'approve'])->assertForbidden();
+});
+
+it('lets staff moderate a release of a plugin that is itself waiting', function () {
+    ['waiting' => $waiting] = apiLibrary();
+    addRelease($waiting, '2.0.0', PluginStatus::MODERATED);
+    actingAs(moderator());
+
+    postJson('/api/v1/plugins/waiting/releases/2.0.0/moderate', ['action' => 'approve'])->assertOk()->assertJsonPath('data.status', 'active');
 });

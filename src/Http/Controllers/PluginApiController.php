@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Filagora\Plugins\Http\Controllers;
 
 use Filagora\Core\Contracts\AccessChecker;
+use Filagora\Core\Support\Tables;
 use Filagora\Plugins\Api\ApiAccess;
 use Filagora\Plugins\Api\DownloadLinks;
 use Filagora\Plugins\Api\UpdateCheck;
@@ -165,7 +166,8 @@ class PluginApiController extends Controller
         abort_if($plugin === null, 404);
         abort_unless($this->ownsOrModerates($user, $plugin), 403);
 
-        $threads = Schema::hasTable('threads') ? ['exists:threads,id'] : [];
+        $threadsTable = Tables::name('threads');
+        $threads = Schema::hasTable($threadsTable) ? ['exists:'.$threadsTable.',id'] : [];
 
         $plugin->fill($request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:180'],
@@ -263,7 +265,7 @@ class PluginApiController extends Controller
 
         $validated = $request->validate([
             'action' => ['required', Rule::enum(ModerationAction::class)],
-            'note' => ['nullable', 'string', 'required_if:action,reject_permanently'],
+            'note' => ['nullable', 'string'],
         ]);
 
         try {
