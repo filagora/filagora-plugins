@@ -28,6 +28,13 @@ it('declares the keys behind its abilities, without letting them cover what is b
         ->and($definitions['filagora.plugins.moderate']->wildcardChildren)->toBeFalse();
 });
 
+it('declares the capability keys the API asks of a token\'s owner, which may be granted with a wildcard', function () {
+    $definitions = app(EntitlementRegistry::class)->definitions();
+
+    expect($definitions)->toHaveKeys(['api.plugins.read', 'api.plugins.download', 'api.plugins.write'])
+        ->and($definitions['api.plugins.read']->wildcardChildren)->toBeTrue();
+});
+
 it('lists the scopes set on plugin types, once each, and nothing for a type with none', function () {
     PluginType::create(['name' => 'A', 'slug' => 'a', 'required_entitlement_scope' => 'plugins.members']);
     PluginType::create(['name' => 'B', 'slug' => 'b', 'required_entitlement_scope' => 'plugins.members']);
