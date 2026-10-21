@@ -5,6 +5,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-21
+
 ### Added
 
 - Optional download endpoints (`routes.downloads.enabled`) and an optional JSON API (`routes.api.enabled`), both
