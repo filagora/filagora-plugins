@@ -5,6 +5,11 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `ReleaseScreens`: other packages can add columns, filters, row and bulk actions to the release list and
+  relation managers to the release edit page.
+
 ## [0.2.0] - 2026-10-21
 
 ### Added

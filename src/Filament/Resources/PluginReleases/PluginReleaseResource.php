@@ -7,6 +7,7 @@ namespace Filagora\Plugins\Filament\Resources\PluginReleases;
 use BackedEnum;
 use Filagora\Core\Filament\Concerns\GatedByAbility;
 use Filagora\Core\Navigation\NavigationGroupRegistry;
+use Filagora\Plugins\Filament\ReleaseScreens;
 use Filagora\Plugins\Filament\Resources\PluginReleases\Pages\EditPluginRelease;
 use Filagora\Plugins\Filament\Resources\PluginReleases\Pages\ListPluginReleases;
 use Filagora\Plugins\Filament\Resources\PluginReleases\Schemas\PluginReleaseForm;
@@ -75,6 +76,11 @@ class PluginReleaseResource extends Resource
     public static function table(Table $table): Table
     {
         return PluginReleasesTable::configure($table);
+    }
+
+    public static function getRelations(): array
+    {
+        return app(ReleaseScreens::class)->relationManagers();
     }
 
     public static function getPages(): array

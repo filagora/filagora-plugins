@@ -8,6 +8,7 @@ use Filagora\Core\Support\UserModel;
 use Filagora\Plugins\Archiving\Archiving;
 use Filagora\Plugins\Enums\PluginStatus;
 use Filagora\Plugins\Filament\Actions\ModerationActions;
+use Filagora\Plugins\Filament\ReleaseScreens;
 use Filagora\Plugins\Models\PluginRelease;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -28,6 +29,8 @@ class PluginReleasesTable
 {
     public static function configure(Table $table): Table
     {
+        $screens = app(ReleaseScreens::class);
+
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
@@ -42,19 +45,23 @@ class PluginReleasesTable
                 TextColumn::make('download_count')->numeric()->sortable()->toggleable(),
                 TextColumn::make('created_at')->dateTime()->sortable(),
                 TextColumn::make('archived_at')->dateTime()->placeholder('-')->sortable()->toggleable(isToggledHiddenByDefault: true),
+                ...$screens->columns(),
             ])
             ->filters([
                 SelectFilter::make('status')->options(PluginStatus::options()),
+                ...$screens->filters(),
             ])
             ->recordActions([
                 EditAction::make(),
                 ModerationActions::approveRelease(),
                 ModerationActions::rejectRelease(),
                 self::download(),
+                ...$screens->actions(),
             ])
             ->recordActionsPosition(RecordActionsPosition::BeforeCells)
             ->toolbarActions([
                 BulkActionGroup::make([
+                    ...$screens->bulkActions(),
                     BulkAction::make('changeStatus')
                         ->label(__('filagora-plugins::messages.change_status'))
                         ->schema([Select::make('status')->options(PluginStatus::directlySettableOptions())->required()])
