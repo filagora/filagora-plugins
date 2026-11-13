@@ -7,11 +7,9 @@ subscriptions and staff notes, with the review, quarantine and archive states a 
 > frontend: it is models, services, staff screens and two optional sets of routes, and you build the
 > pages.
 
-## Requirements
+## What it provides
 
-PHP 8.4, Laravel 13, Filament 5 and `filagora/filagora-core`. Tested against MariaDB 11.4.
-
-## Tables
+### Tables
 
 `plugin_types`, `plugins`, `plugin_releases`, `plugin_reports`, `plugin_subscriptions` and
 `plugin_moderator_notes` (prefixed `filagora_` by default). A site that already has these tables can
@@ -29,7 +27,7 @@ adopt them with `php artisan filagora:adopt`. Models can be swapped in `config/f
   [`filagora/filagora-forums`](https://github.com/filagora/filagora-forums) installed, the migration in
   `database/migrations/forums` adds the support-thread foreign key.
 
-## Using it
+### Using it
 
 ```php
 $releases = app(\Filagora\Plugins\Services\Releases::class);
@@ -71,7 +69,7 @@ app(\Filagora\Plugins\Services\Reports::class)->report($user, $plugin, 'Looks li
 - **Followers** choose whether to hear through your `SubscriberPreferences` (everyone, by default).
 - **Kill switch.** `submissions_enabled` set to false refuses every new plugin and release.
 
-## Who sees what, downloads and search
+### Who sees what, downloads and search
 
 ```php
 $visibility = app(\Filagora\Plugins\Services\Visibility::class);
@@ -102,7 +100,7 @@ app(\Filagora\Plugins\Search\PluginSearch::class)->plugins('shipping', $viewer, 
   found, in any field. The index is kept right when a release, plugin or type changes. A profile package adds
   document fields by subclassing `ReleaseSearchIndex` and score nudges by subclassing `PluginRanking`.
 
-## Archiving old releases
+### Archiving old releases
 
 ```bash
 php artisan filagora:plugins:archive-releases                    # show the plan, change nothing
@@ -124,7 +122,7 @@ a run.
 `Archiving::restore()` has no limit. The service checks nobody's permission: the screen or command that offers
 it must.
 
-## Staff screens, privacy and entitlements
+### Staff screens, privacy and entitlements
 
 Register `FilagoraPluginsPlugin::make()` on a Filament panel for four screens in a **Plugins** navigation group,
 all open only to someone the access checker allows `filagora.plugins.moderate`:
@@ -152,7 +150,7 @@ every scope set on a plugin type. The package registers a **privacy contributor*
 package's export covers a person's plugins, releases, followed plugins and reports, and erasure removes what is only
 theirs (who they follow, what they reported) while the public plugins and releases, and staff notes, stay.
 
-## The optional routes
+### The optional routes
 
 Two sets of routes, both **off by default**; switch them on in `config/filagora-plugins.php` (`routes.api.enabled`,
 `routes.downloads.enabled`, or `FILAGORA_PLUGINS_API_ENABLED` / `FILAGORA_PLUGINS_DOWNLOADS_ENABLED`).
@@ -192,6 +190,10 @@ asks `routes.api.guard` (set it to `sanctum`) for the user and the user's `token
 reach your `ReleaseExtension` in `ReleaseInput::$extra`); `PluginIdentifiers` teaches the update check the ids your
 clients already use. Both default to nothing.
 
+## Requirements
+
+PHP 8.4, Laravel 13, Filament 5 and `filagora/filagora-core`. Tested against MariaDB 11.4.
+
 ## Install
 
 ```bash
@@ -226,14 +228,25 @@ A site that already has the tables runs `php artisan filagora:adopt` instead of 
 | `routes.api.*`, `routes.downloads.*` | off | The optional routes, their prefix, middleware, guard, capability keys and limits |
 | `routes.plugin` | none | Named route of your plugin page, for links in mail |
 
+## Extending
+
+Extend through documented contracts, events and registries. Anything not documented
+is `@internal`.
+
 ## Testing
 
 ```bash
 composer test
 ```
 
-Tests run against a real MariaDB, never SQLite. Host and credentials come from your environment;
-the database is always named `testing`.
+Tests run against a real MariaDB, never SQLite, so engine behaviour (FULLTEXT,
+`ONLY_FULL_GROUP_BY`, collation) matches production. Host and credentials come from
+your environment; the database is always named `testing`, never your development one.
+
+## Local development (DDEV)
+
+`.ddev/` is included. `ddev start` creates both `db` and `testing` (run `ddev restart` once
+if `testing` is missing), then `ddev exec vendor/bin/pest`.
 
 ## Licence
 
