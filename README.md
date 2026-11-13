@@ -9,6 +9,10 @@ subscriptions and staff notes, with the review, quarantine and archive states a 
 
 ## What it provides
 
+### Overview
+
+Plugins for Filagora: a library of plugins and releases with moderation, reports, subscriptions and archiving, as a Filament plugin.
+
 ### Tables
 
 `plugin_types`, `plugins`, `plugin_releases`, `plugin_reports`, `plugin_subscriptions` and
@@ -26,6 +30,32 @@ adopt them with `php artisan filagora:adopt`. Models can be swapped in `config/f
   tables (`forum_thread_id`, the security-scan ids) are plain columns; with
   [`filagora/filagora-forums`](https://github.com/filagora/filagora-forums) installed, the migration in
   `database/migrations/forums` adds the support-thread foreign key.
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `filagora:plugins:archive-releases` | Move historical plugin releases to "archived" so they leave the security sweep (reversible). |
+
+### Events
+
+- `PluginModerated`: A moderator approved a plugin, or rejected it for good.
+- `PluginReportReviewed`
+- `PluginReported`
+- `PluginSubmitted`: A new plugin was submitted with its first release.
+- `ReleasePublished`: A release became active, because its author may publish without review or a moderator approved it (`$moderator` is set only then).
+- `ReleaseRejected`: A release was rejected for good, by a moderator or because a newer upload replaced it (then `$except` is the person who uploaded the new one, who needs no notice).
+- `ReleaseSubmitted`: A release was uploaded: for a new plugin's first release, and for every later one.
+- `ReleasesArchived`: Releases left the live list and the security sweep.
+- `ReleasesRestored`: Archived releases went back to the status they had before.
+- `SubscribersToNotify`: People who follow a plugin and want to hear about a new release.
+
+### Access
+
+| Ability | Entitlement key |
+| --- | --- |
+| `filagora.plugins.moderate` | `filagora.plugins.moderate` |
+| `filagora.plugins.auto_publish` | `filagora.plugins.auto_publish` |
 
 ### Using it
 
@@ -69,7 +99,7 @@ app(\Filagora\Plugins\Services\Reports::class)->report($user, $plugin, 'Looks li
 - **Followers** choose whether to hear through your `SubscriberPreferences` (everyone, by default).
 - **Kill switch.** `submissions_enabled` set to false refuses every new plugin and release.
 
-### Who sees what, downloads and search
+#### Who sees what, downloads and search
 
 ```php
 $visibility = app(\Filagora\Plugins\Services\Visibility::class);
@@ -100,7 +130,7 @@ app(\Filagora\Plugins\Search\PluginSearch::class)->plugins('shipping', $viewer, 
   found, in any field. The index is kept right when a release, plugin or type changes. A profile package adds
   document fields by subclassing `ReleaseSearchIndex` and score nudges by subclassing `PluginRanking`.
 
-### Archiving old releases
+#### Archiving old releases
 
 ```bash
 php artisan filagora:plugins:archive-releases                    # show the plan, change nothing
@@ -122,7 +152,7 @@ a run.
 `Archiving::restore()` has no limit. The service checks nobody's permission: the screen or command that offers
 it must.
 
-### Staff screens, privacy and entitlements
+#### Staff screens, privacy and entitlements
 
 Register `FilagoraPluginsPlugin::make()` on a Filament panel for four screens in a **Plugins** navigation group,
 all open only to someone the access checker allows `filagora.plugins.moderate`:
@@ -150,7 +180,7 @@ every scope set on a plugin type. The package registers a **privacy contributor*
 package's export covers a person's plugins, releases, followed plugins and reports, and erasure removes what is only
 theirs (who they follow, what they reported) while the public plugins and releases, and staff notes, stay.
 
-### The optional routes
+#### The optional routes
 
 Two sets of routes, both **off by default**; switch them on in `config/filagora-plugins.php` (`routes.api.enabled`,
 `routes.downloads.enabled`, or `FILAGORA_PLUGINS_API_ENABLED` / `FILAGORA_PLUGINS_DOWNLOADS_ENABLED`).
