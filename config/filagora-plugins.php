@@ -145,6 +145,11 @@ return [
          * The optional JSON API. Off by default. `guard` is the guard that signs a request in (for
          * tokens, the Sanctum guard); `keys` are the capability keys a token's owner needs, by
          * ability (set one to null to ask for none); `per_page` pages the plugin list.
+         *
+         * `throttle` is requests a minute (0 for none) for each of reads, writes and update checks,
+         * counted per signed-in person or, for a guest, per address. `cache_seconds` is how long shared
+         * caches may hold a guest's read (0 switches caching off); a signed-in person's answers are
+         * never public.
          */
         'api' => [
             'enabled' => (bool) env('FILAGORA_PLUGINS_API_ENABLED', false),
@@ -153,6 +158,12 @@ return [
             'guard' => null,
             'per_page' => 15,
             'max_upload_kb' => 102400,
+            'throttle' => [
+                'read' => (int) env('FILAGORA_PLUGINS_API_THROTTLE_READ', 120),
+                'write' => (int) env('FILAGORA_PLUGINS_API_THROTTLE_WRITE', 30),
+                'updates' => (int) env('FILAGORA_PLUGINS_API_THROTTLE_UPDATES', 60),
+            ],
+            'cache_seconds' => (int) env('FILAGORA_PLUGINS_API_CACHE_SECONDS', 60),
             'keys' => [
                 'read' => 'api.plugins.read',
                 'download' => 'api.plugins.download',

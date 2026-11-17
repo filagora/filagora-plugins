@@ -216,6 +216,15 @@ for (`plugins:read`, `plugins:download`, `plugins:write`) on the token, and the 
 `null` to ask for none. The package never reads a token: bind `ApiUsers` for Passport or anything else; the default
 asks `routes.api.guard` (set it to `sanctum`) for the user and the user's `tokenCan()`.
 
+**Limits and caching.** Reads, update checks and changes each have a limit in requests a minute
+(`routes.api.throttle`: 120, 60 and 30; `FILAGORA_PLUGINS_API_THROTTLE_READ`, `_UPDATES` and `_WRITE`; 0 for none),
+counted per signed-in person or, for a guest, per address; past it the answer is a 429 with `Retry-After`. The
+address is the one Laravel reports for the request, so behind a proxy or CDN such as Cloudflare the host must trust
+its proxies, or every guest shares the proxy's address and one limit. The limiters are named `filagora-plugins-api-read`, `-updates` and `-write`: define one yourself and yours is used. What the
+API answers depends on who asks, so every response carries `Vary: Authorization`. A guest's successful read is public
+for `routes.api.cache_seconds` (60; 0 switches caching off) and has an `ETag`, so a repeat with `If-None-Match` is a
+304; anything shown to a signed-in person, by token or session, is private.
+
 **For profile packages.** `ApiFields` adds fields to every plugin and release and rules for extra upload fields (they
 reach your `ReleaseExtension` in `ReleaseInput::$extra`); `PluginIdentifiers` teaches the update check the ids your
 clients already use. Both default to nothing.
