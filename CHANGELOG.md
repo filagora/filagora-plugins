@@ -5,6 +5,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
 ### Added
 
 - **Rate limits on the JSON API.** Reads, update checks and changes are limited separately (`routes.api.throttle`, default 120, 60 and 30 requests a minute; 0 for none), counted per signed-in person or, for a guest, per address, with a 429 and `Retry-After` past the limit. The limiters are named `filagora-plugins-api-read`, `-updates` and `-write`; a host that defines one keeps its own. **Behaviour change:** an API that was open to any rate now refuses callers over these limits; raise or zero them in config if a client needs more.
