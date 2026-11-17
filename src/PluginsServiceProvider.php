@@ -62,7 +62,10 @@ use Filagora\Plugins\Services\Subscriptions;
 use Filagora\Plugins\Services\Visibility;
 use Filagora\Plugins\Support\PluginTypeEntitlementKeys;
 use Filagora\Search\Support\SearchIndexRegistry;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -214,6 +217,8 @@ class PluginsServiceProvider extends ServiceProvider
     private function registerRoutes(): void
     {
         if (config('filagora-plugins.routes.api.enabled')) {
+            $this->registerApiLimiters();
+
             Route::prefix((string) config('filagora-plugins.routes.api.prefix', 'api/v1'))
                 ->middleware((array) config('filagora-plugins.routes.api.middleware', ['api']))
                 ->name('filagora-plugins.api.')
@@ -224,6 +229,35 @@ class PluginsServiceProvider extends ServiceProvider
             Route::prefix((string) config('filagora-plugins.routes.downloads.prefix', 'plugins'))
                 ->middleware((array) config('filagora-plugins.routes.downloads.middleware', ['web']))
                 ->group(__DIR__.'/../routes/downloads.php');
+        }
+    }
+
+    /**
+     * The API's rate limiters: `filagora-plugins-api-read`, `-write` and `-updates`, each a number of
+     * requests a minute from `routes.api.throttle` (0 for none), counted for the person a token or
+     * session signs in, or for the address of a guest. A host that defines a limiter of the same
+     * name keeps its own.
+     */
+    private function registerApiLimiters(): void
+    {
+        foreach (['read' => 120, 'write' => 30, 'updates' => 60] as $name => $default) {
+            $limiter = 'filagora-plugins-api-'.$name;
+
+            if (RateLimiter::limiter($limiter) !== null) {
+                continue;
+            }
+
+            RateLimiter::for($limiter, function (Request $request) use ($name, $default): Limit {
+                $perMinute = (int) config('filagora-plugins.routes.api.throttle.'.$name, $default);
+
+                if ($perMinute <= 0) {
+                    return Limit::none();
+                }
+
+                $user = $this->app->make(ApiUsers::class)->resolve($request);
+
+                return Limit::perMinute($perMinute)->by($user !== null ? 'user:'.$user->getAuthIdentifier() : 'ip:'.$request->ip());
+            });
         }
     }
 }
