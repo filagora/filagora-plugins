@@ -6,6 +6,7 @@ namespace Filagora\Plugins\Api;
 
 use Filagora\Core\Contracts\AccessChecker;
 use Filagora\Plugins\Contracts\ApiUsers;
+use Filagora\Plugins\Contracts\IdentifiesApiTokens;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
@@ -88,6 +89,14 @@ class ApiAccess
         }
 
         return $user !== null && $this->allowed($user, $ability);
+    }
+
+    /**
+     * The id of the token the request came with, when the `ApiUsers` binding can name it.
+     */
+    public function tokenId(Request $request, Authenticatable $user): int|string|null
+    {
+        return $this->users instanceof IdentifiesApiTokens ? $this->users->tokenId($request, $user) : null;
     }
 
     public function hasToken(Request $request): bool

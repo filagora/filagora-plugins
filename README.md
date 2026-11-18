@@ -39,6 +39,7 @@ adopt them with `php artisan filagora:adopt`. Models can be swapped in `config/f
 
 ### Events
 
+- `ApiChangeMade`: A call to the JSON API changed something, and it went through. Fired once, after the change, for each of the endpoints that change things (and never for a refused one), so a host can keep an audit trail of who did what with which key. The package stores nothing itself.
 - `PluginModerated`: A moderator approved a plugin, or rejected it for good.
 - `PluginReportReviewed`
 - `PluginReported`
@@ -215,6 +216,14 @@ for (`plugins:read`, `plugins:download`, `plugins:write`) on the token, and the 
 (`routes.api.keys`, `api.plugins.read` and so on) allowed by the access checker for the token's owner; set a key to
 `null` to ask for none. The package never reads a token: bind `ApiUsers` for Passport or anything else; the default
 asks `routes.api.guard` (set it to `sanctum`) for the user and the user's `tokenCan()`.
+
+**Who changed what.** Every call to an endpoint that changes something (changing a plugin, uploading or moderating a
+release, following and unfollowing) fires `ApiChangeMade` once it has gone through, and never for a refused one. It
+carries what changed (`ApiChange`), the person, the plugin and version, the caller's address, a little context (the
+fields changed, the moderation action taken) and `tokenId`, the id of the token the person came with, or `null` for a
+session. The package stores nothing: listen for the event and write it to your audit trail or log. `tokenId` comes from
+`IdentifiesApiTokens`, an optional interface beside `ApiUsers` that the default implements for Sanctum
+(`currentAccessToken()`); a custom `ApiUsers` that does not implement it leaves the token unnamed.
 
 **Limits and caching.** Reads, update checks and changes each have a limit in requests a minute
 (`routes.api.throttle`: 120, 60 and 30; `FILAGORA_PLUGINS_API_THROTTLE_READ`, `_UPDATES` and `_WRITE`; 0 for none),
