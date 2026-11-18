@@ -5,6 +5,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-18
+
 ### Added
 
 - **`ApiChangeMade`, an event for every change made through the JSON API.** Fired once after a plugin is changed, a release is uploaded or moderated, or a plugin is followed or unfollowed, and never for a refused call. It carries what changed (the `ApiChange` enum), the person, the plugin and version, the caller's address, some context (the fields changed, the moderation action) and `tokenId`, so a host can keep an audit trail of which key did what. The package stores nothing.
