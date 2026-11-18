@@ -225,6 +225,11 @@ API answers depends on who asks, so every response carries `Vary: Authorization`
 for `routes.api.cache_seconds` (60; 0 switches caching off) and has an `ETag`, so a repeat with `If-None-Match` is a
 304; anything shown to a signed-in person, by token or session, is private.
 
+**The contract.** `resources/openapi/filagora-plugins.yaml` is an OpenAPI 3.1 description of every route above, with the
+limits, caching and error shapes. `Filagora\Plugins\Api\OpenApiSpec::path()` returns its location so a host can serve it
+(a documentation page, a generated client) or add its own fields to the plugin and release schemas. A test fails if a route
+is added without describing it, or described without being served.
+
 **For profile packages.** `ApiFields` adds fields to every plugin and release and rules for extra upload fields (they
 reach your `ReleaseExtension` in `ReleaseInput::$extra`); `PluginIdentifiers` teaches the update check the ids your
 clients already use. Both default to nothing.

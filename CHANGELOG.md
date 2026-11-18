@@ -5,6 +5,10 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **An OpenAPI description of the JSON API** (`resources/openapi/filagora-plugins.yaml`, OpenAPI 3.1) covering every route, including the owner and staff changes, with the token abilities, limits, caching headers and error shapes. `OpenApiSpec::path()` returns its location. A test keeps it in step with the registered routes, in both directions.
+
 ## [0.4.0] - 2026-11-17
 
 ### Added

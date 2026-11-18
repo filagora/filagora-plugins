@@ -1,0 +1,726 @@
+openapi: 3.1.0
+info:
+  title: Filagora Plugins API
+  version: "0.4.0"
+  summary: "The JSON API of the filagora-plugins package: catalogue, releases, update checks, following, and changes by owners and staff."
+  description: |
+    The routes the package registers when `routes.api.enabled` is on, under `routes.api.prefix` (`api/v1` by default).
+    A host adds fields to plugins and releases through the `ApiFields` contract, so a host's responses carry
+    more properties than the schemas here name; they are never fewer.
+
+    **Who may call.** Reads can be made as a guest. A request that carries a bearer token needs the ability the
+    endpoint asks for (`plugins:read`, `plugins:download`, `plugins:write`) on the token, and the token's owner
+    needs the matching capability key (`routes.api.keys`: `api.plugins.read`, `.download`, `.write`). A browser
+    session needs neither. What a person then sees or may download is decided by plugin type and entitlement, so
+    the same URL can answer differently to different callers.
+
+    **Limits.** Reads, update checks and changes are limited separately, per signed-in person or, for a guest, per
+    address (`routes.api.throttle`). Past a limit the answer is a 429 with `Retry-After`.
+
+    **Caching.** Every response varies on `Authorization`. A guest's successful read is public for
+    `routes.api.cache_seconds` and carries an `ETag`; repeat the request with `If-None-Match` for a 304. Anything
+    shown to a signed-in person is private.
+
+    **Errors.** A refusal is `{"message": "..."}`; invalid input is a 422 with `{"message": "...", "errors": {field: [..]}}`.
+    Lists of plugins are paged with `data`, `links` and `meta`; other lists are `{"data": [...]}`.
+servers:
+  - url: https://example.com
+    description: Your site
+tags:
+  - name: Plugin Types
+  - name: Plugins
+  - name: Releases
+  - name: Downloads
+  - name: Updates
+  - name: Subscriptions
+  - name: Changes
+paths:
+  /api/v1/plugin-types:
+    get:
+      operationId: listPluginTypes
+      tags: [Plugin Types]
+      summary: List the plugin types the caller may see
+      description: Active types. A guest only receives types that need no entitlement.
+      security:
+        - {}
+        - bearer: [plugins:read]
+      responses:
+        "200":
+          description: Plugin types
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PluginType"
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins:
+    get:
+      operationId: listPlugins
+      tags: [Plugins]
+      summary: List plugins, paged
+      description: |
+        The public catalogue by default. `visibility=owner` lists the caller's own plugins and `visibility=staff`
+        every plugin a moderator may see; both need a signed-in caller and fall back to the public list for a guest.
+      security:
+        - {}
+        - bearer: [plugins:read]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 255 }, description: Search text }
+        - { name: type, in: query, schema: { type: string, maxLength: 255 }, description: A plugin type slug }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { $ref: "#/components/parameters/Visibility" }
+      responses:
+        "200":
+          description: A page of plugins
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Plugin"
+                  links: { $ref: "#/components/schemas/PageLinks" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/updates:
+    post:
+      operationId: checkForUpdates
+      tags: [Updates]
+      summary: Find newer releases for installed plugins
+      description: |
+        Send what is installed; receive a row for each plugin that has a newer release that works with `target`.
+        Plugins that are unknown, hidden from the caller or already current are left out, so the answer never
+        reveals what the caller may not see.
+      security:
+        - {}
+        - bearer: [plugins:read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCheckRequest"
+      responses:
+        "200":
+          description: The plugins with an update
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UpdateRow"
+                  meta:
+                    type: object
+                    properties:
+                      target: { type: [string, "null"] }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/{slug}:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+    get:
+      operationId: getPlugin
+      tags: [Plugins]
+      summary: One plugin, with its releases
+      security:
+        - {}
+        - bearer: [plugins:read]
+      parameters:
+        - { $ref: "#/components/parameters/Visibility" }
+      responses:
+        "200":
+          description: The plugin
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/Plugin"
+                      - type: object
+                        properties:
+                          releases:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Release"
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    patch:
+      operationId: updatePlugin
+      tags: [Changes]
+      summary: Change a plugin's details
+      description: The owner, or a moderator. Send only the fields to change.
+      security:
+        - bearer: [plugins:write]
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 180 }
+                description: { type: [string, "null"] }
+                github_repository_url: { type: [string, "null"], format: uri, maxLength: 500 }
+                forum_thread_id: { type: [integer, "null"], minimum: 1, description: "Only when the host has forum threads." }
+      responses:
+        "200":
+          description: The plugin as it now is
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/Plugin"
+                      - type: object
+                        properties:
+                          releases:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Release"
+                  meta:
+                    type: object
+                    properties:
+                      message: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/{slug}/releases:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+    get:
+      operationId: listReleases
+      tags: [Releases]
+      summary: A plugin's releases
+      security:
+        - {}
+        - bearer: [plugins:read]
+      parameters:
+        - { $ref: "#/components/parameters/Visibility" }
+      responses:
+        "200":
+          description: Releases, newest first
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Release"
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    post:
+      operationId: uploadRelease
+      tags: [Changes]
+      summary: Upload a release
+      description: |
+        Needs a signed-in caller with a verified email. The release is live at once for a caller who may publish
+        directly, and waits for review otherwise (`meta.message` says which). A host's own upload fields are sent
+        alongside these. A paused site answers 503.
+      security:
+        - bearer: [plugins:write]
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [version, zip_file]
+              properties:
+                version: { type: string, maxLength: 40 }
+                zip_file: { type: string, format: binary, description: "A zip, up to `routes.api.max_upload_kb`." }
+                changelog: { type: [string, "null"] }
+                supersede_pending_releases: { type: boolean }
+      responses:
+        "201":
+          description: The release
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Release" }
+                  meta:
+                    type: object
+                    properties:
+                      plugin_slug: { type: string }
+                      superseded_versions:
+                        type: array
+                        items: { type: string }
+                      message: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: Submissions are paused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+  /api/v1/plugins/{slug}/releases/{version}:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+      - { $ref: "#/components/parameters/Version" }
+    get:
+      operationId: getRelease
+      tags: [Releases]
+      summary: One release
+      security:
+        - {}
+        - bearer: [plugins:read]
+      parameters:
+        - { $ref: "#/components/parameters/Visibility" }
+      responses:
+        "200":
+          description: The release
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Release" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/{slug}/releases/{version}/moderate:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+      - { $ref: "#/components/parameters/Version" }
+    post:
+      operationId: moderateRelease
+      tags: [Changes]
+      summary: Approve or reject a release
+      description: Moderators only. A refusal to act on the release is a 403 or a 422 naming `note`.
+      security:
+        - bearer: [plugins:write]
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, reject_permanently] }
+                note: { type: [string, "null"] }
+      responses:
+        "200":
+          description: The release as it now is
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Release" }
+                  meta:
+                    type: object
+                    properties:
+                      plugin_slug: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/{slug}/download/{version}:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+      - { $ref: "#/components/parameters/Version" }
+    get:
+      operationId: getDownloadDetails
+      tags: [Downloads]
+      summary: Download details for a release
+      description: |
+        `download_url` is null when the downloads route is off or the caller may not download this release.
+        The link is a stable URL, not a signed or expiring one.
+      security:
+        - {}
+        - bearer: [plugins:read, plugins:download]
+      parameters:
+        - { $ref: "#/components/parameters/Visibility" }
+      responses:
+        "200":
+          description: Download details
+          headers:
+            Cache-Control: { $ref: "#/components/headers/CacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+            Vary: { $ref: "#/components/headers/Vary" }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/DownloadDetails" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /api/v1/plugins/{slug}/subscription:
+    parameters:
+      - { $ref: "#/components/parameters/Slug" }
+    get:
+      operationId: getSubscription
+      tags: [Subscriptions]
+      summary: Whether the caller follows a plugin
+      description: Needs a signed-in caller with a verified email.
+      security:
+        - bearer: [plugins:read]
+        - sessionCookie: []
+      responses:
+        "200": { $ref: "#/components/responses/Subscribed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    post:
+      operationId: subscribe
+      tags: [Subscriptions]
+      summary: Follow a plugin
+      security:
+        - bearer: [plugins:write]
+        - sessionCookie: []
+      responses:
+        "200": { $ref: "#/components/responses/Subscribed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    delete:
+      operationId: unsubscribe
+      tags: [Subscriptions]
+      summary: Stop following a plugin
+      security:
+        - bearer: [plugins:write]
+        - sessionCookie: []
+      responses:
+        "200": { $ref: "#/components/responses/Subscribed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: |
+        A token from the host's API key screen. The ability named on each operation must be on the token, and its
+        owner needs the matching capability key.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: A browser session, for a caller signed in on the site.
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string }
+    Version:
+      name: version
+      in: path
+      required: true
+      schema: { type: string }
+      description: A release version such as `1.2.0`.
+    Visibility:
+      name: visibility
+      in: query
+      schema: { type: string, enum: [public, owner, staff], default: public }
+      description: "`owner` and `staff` widen the view for a signed-in caller who is allowed it."
+  headers:
+    CacheControl:
+      description: "`public, max-age=N, s-maxage=N` for a guest, `private` for a signed-in caller."
+      schema: { type: string }
+    ETag:
+      description: A validator for a guest's read; send it back as `If-None-Match`.
+      schema: { type: string }
+    Vary:
+      description: Always includes `Authorization`.
+      schema: { type: string }
+  responses:
+    NotModified:
+      description: The `If-None-Match` validator still matches.
+    Unauthenticated:
+      description: No valid credentials.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    Forbidden:
+      description: The token lacks the ability or capability, or the caller may not do this.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    NotFound:
+      description: No such plugin or release, or it is not visible to the caller.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    ValidationError:
+      description: The input was refused.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, errors]
+            properties:
+              message: { type: string }
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items: { type: string }
+    TooManyRequests:
+      description: Past the limit for this kind of request.
+      headers:
+        Retry-After:
+          description: Seconds until the caller may try again.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    Subscribed:
+      description: Whether the caller now follows the plugin.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: object
+                required: [plugin_slug, subscribed]
+                properties:
+                  plugin_slug: { type: string }
+                  subscribed: { type: boolean }
+  schemas:
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    PageLinks:
+      type: object
+      properties:
+        first: { type: [string, "null"], format: uri }
+        last: { type: [string, "null"], format: uri }
+        prev: { type: [string, "null"], format: uri }
+        next: { type: [string, "null"], format: uri }
+    PageMeta:
+      type: object
+      properties:
+        current_page: { type: integer }
+        from: { type: [integer, "null"] }
+        last_page: { type: integer }
+        path: { type: string }
+        per_page: { type: integer }
+        to: { type: [integer, "null"] }
+        total: { type: integer }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { type: [string, "null"] }
+              label: { type: string }
+              active: { type: boolean }
+    PluginType:
+      type: object
+      required: [id, name, slug, requires_entitlement, active_plugins_count]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        position: { type: [integer, "null"] }
+        requires_entitlement: { type: boolean }
+        active_plugins_count: { type: integer }
+    Plugin:
+      type: object
+      description: A host may add properties.
+      required: [id, name, slug, status, type]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string }
+        description: { type: string }
+        github_repository_url: { type: string }
+        active_releases_count: { type: integer }
+        type:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            slug: { type: string }
+        owner:
+          type: [object, "null"]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        forum_thread:
+          type: [object, "null"]
+          properties:
+            id: { type: integer }
+            url: { type: [string, "null"] }
+        latest_release:
+          type: [object, "null"]
+          properties:
+            id: { type: integer }
+            version: { type: string }
+            status: { type: string }
+            download_url: { type: [string, "null"] }
+            created_at: { type: [string, "null"], format: date-time }
+        url: { type: [string, "null"], description: "The host's page for the plugin, when it named a route for it." }
+        download_url: { type: [string, "null"] }
+        created_at: { type: [string, "null"], format: date-time }
+        updated_at: { type: [string, "null"], format: date-time }
+      additionalProperties: true
+    Release:
+      type: object
+      description: A host may add properties.
+      required: [id, version, status, plugin_slug]
+      properties:
+        id: { type: integer }
+        version: { type: string }
+        status: { type: string }
+        internal_version: { type: [integer, "null"] }
+        changelog: { type: string }
+        zip_filename: { type: string }
+        zip_size: { type: [integer, "null"] }
+        checksum_sha256: { type: string }
+        plugin_slug: { type: string }
+        download_url: { type: [string, "null"] }
+        compatibility:
+          type: array
+          description: What the release works with, as the host defines it. Empty when the host tracks nothing.
+          items: {}
+        created_at: { type: [string, "null"], format: date-time }
+        updated_at: { type: [string, "null"], format: date-time }
+      additionalProperties: true
+    DownloadDetails:
+      type: object
+      required: [plugin_slug, version, status]
+      properties:
+        plugin_slug: { type: string }
+        plugin_name: { type: string }
+        version: { type: string }
+        status: { type: string }
+        zip_filename: { type: string }
+        zip_size: { type: [integer, "null"] }
+        checksum_sha256: { type: string }
+        download_count: { type: [integer, "null"] }
+        download_url: { type: [string, "null"] }
+        published_at: { type: [string, "null"], format: date-time }
+        updated_at: { type: [string, "null"], format: date-time }
+      additionalProperties: true
+    UpdateCheckRequest:
+      type: object
+      required: [plugins]
+      properties:
+        target:
+          type: [string, "null"]
+          maxLength: 255
+          description: What to match releases against (for example the version of the host application).
+        plugins:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [version]
+            properties:
+              version: { type: string, maxLength: 255, description: The installed version. }
+              slug: { type: string }
+              id: { type: integer }
+            description: Identified by `slug` or `id`; a host may teach the check more identifiers.
+            additionalProperties: true
+    UpdateRow:
+      type: object
+      properties:
+        slug: { type: string }
+        id: { type: integer }
+        installed_version: { type: string }
+        update_available: { type: boolean }
+        latest_compatible_release:
+          type: object
+          properties:
+            version: { type: string }
+            status: { type: string }
+            changelog: { type: string }
+            checksum_sha256: { type: string }
+            download_url: { type: [string, "null"] }
+            compatibility:
+              type: array
+              items: {}
+            published_at: { type: [string, "null"], format: date-time }
