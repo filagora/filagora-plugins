@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Filagora\Plugins\Tests\Support;
 
 use Filagora\Plugins\Contracts\ApiUsers;
+use Filagora\Plugins\Contracts\IdentifiesApiTokens;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,7 @@ use Illuminate\Http\Request;
  * Bearer tokens kept in memory: a token belongs to a person and carries abilities. A request with no
  * bearer token is signed in by the session, as the default does.
  */
-final class FakeApiUsers implements ApiUsers
+final class FakeApiUsers implements ApiUsers, IdentifiesApiTokens
 {
     /** @var array<string, array{user: Authenticatable, abilities: list<string>}> */
     private array $tokens = [];
@@ -44,5 +45,12 @@ final class FakeApiUsers implements ApiUsers
         }
 
         return false;
+    }
+
+    public function tokenId(Request $request, Authenticatable $user): int|string|null
+    {
+        $token = trim((string) $request->bearerToken());
+
+        return $token === '' ? null : $token;
     }
 }

@@ -11,10 +11,12 @@ use Filagora\Plugins\Api\DownloadLinks;
 use Filagora\Plugins\Api\UpdateCheck;
 use Filagora\Plugins\Contracts\ApiFields;
 use Filagora\Plugins\Contracts\PluginIdentifiers;
+use Filagora\Plugins\Enums\ApiChange;
 use Filagora\Plugins\Enums\ModerationAction;
 use Filagora\Plugins\Enums\ModerationRefusal;
 use Filagora\Plugins\Enums\PluginStatus;
 use Filagora\Plugins\Enums\ReleaseRefusal;
+use Filagora\Plugins\Events\ApiChangeMade;
 use Filagora\Plugins\Exceptions\ModerationRefused;
 use Filagora\Plugins\Exceptions\ReleaseRefused;
 use Filagora\Plugins\Http\Resources\PluginDetailResource;
@@ -169,12 +171,16 @@ class PluginApiController extends Controller
         $threadsTable = Tables::name('threads');
         $threads = Schema::hasTable($threadsTable) ? ['exists:'.$threadsTable.',id'] : [];
 
-        $plugin->fill($request->validate([
+        $changes = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:180'],
             'description' => ['sometimes', 'nullable', 'string'],
             'github_repository_url' => ['sometimes', 'nullable', 'url', 'max:500'],
             'forum_thread_id' => ['sometimes', 'nullable', 'integer', 'min:1', ...$threads],
-        ]))->save();
+        ]);
+
+        $plugin->fill($changes)->save();
+
+        $this->changed($request, $user, ApiChange::PLUGIN_UPDATED, $plugin, null, ['fields' => array_keys($changes)]);
 
         $fresh = $this->visibility->findOwnerPlugin($slug, $user);
 
@@ -199,6 +205,7 @@ class PluginApiController extends Controller
         $user = $this->api->requireVerifiedUser($request, ApiAccess::WRITE);
         $plugin = $this->publicPlugin($slug, $user);
         $this->subscriptions->subscribe($user, $plugin);
+        $this->changed($request, $user, ApiChange::PLUGIN_FOLLOWED, $plugin);
 
         return $this->subscribed($plugin, true);
     }
@@ -208,6 +215,7 @@ class PluginApiController extends Controller
         $user = $this->api->requireVerifiedUser($request, ApiAccess::WRITE);
         $plugin = $this->publicPlugin($slug, $user);
         $this->subscriptions->unsubscribe($user, $plugin);
+        $this->changed($request, $user, ApiChange::PLUGIN_UNFOLLOWED, $plugin);
 
         return $this->subscribed($plugin, false);
     }
@@ -242,6 +250,7 @@ class PluginApiController extends Controller
         }
 
         $release->load(['plugin.type']);
+        $this->changed($request, $user, ApiChange::RELEASE_UPLOADED, $plugin, $release->version, ['status' => $release->status->value]);
 
         return response()->json([
             'data' => (new PluginReleaseResource($release))->resolve($request),
@@ -275,6 +284,8 @@ class PluginApiController extends Controller
                 ? abort(403, $refused->getMessage())
                 : throw ValidationException::withMessages(['note' => $refused->getMessage()]);
         }
+
+        $this->changed($request, $user, ApiChange::RELEASE_MODERATED, $plugin, $release->version, ['action' => $validated['action']]);
 
         return response()->json([
             'data' => (new PluginReleaseResource($release->refresh()->load('plugin.type')))->resolve($request),
@@ -319,6 +330,16 @@ class PluginApiController extends Controller
         abort_if($release === null, 404);
 
         return [$plugin, $release];
+    }
+
+    /**
+     * Say that a change went through, naming the token it came with.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function changed(Request $request, Authenticatable $user, ApiChange $change, Plugin $plugin, ?string $version = null, array $context = []): void
+    {
+        ApiChangeMade::dispatch($change, $user, $plugin->slug, $version, $this->api->tokenId($request, $user), $request->ip(), $context);
     }
 
     private function publicPlugin(string $slug, Authenticatable $user): Plugin
