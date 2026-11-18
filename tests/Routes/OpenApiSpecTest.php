@@ -121,3 +121,7 @@ it('names the 429 on every operation, since each is limited', function () {
 
     expect($without)->toBe([]);
 });
+
+it('versions the document as the API, the last part of the route prefix, and not as the package', function () {
+    expect(openApiDocument()['info']['version'])->toBe(basename((string) config('filagora-plugins.routes.api.prefix')));
+});

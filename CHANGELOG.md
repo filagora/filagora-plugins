@@ -5,6 +5,12 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-18
+
+### Fixed
+
+- The OpenAPI description's `info.version` said `0.4.0`, the package's version when it was written, and went stale at once. It is the API's own version now, `v1`, the last part of the route prefix, and a test holds the two together.
+
 ## [0.5.0] - 2026-11-18
 
 ### Added
